@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>11_实例化渲染</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 350px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            width: 280px;
+            font-size: 12px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 2px;
+            font-size: 11px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.active {
+            background: #ff6b6b;
+        }
+        .stats {
+            background: rgba(255,255,255,0.1);
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 11px;
+        }
+        .value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>实例化渲染</h3>
+        <p>本示例展示了Three.js的实例化渲染技术：</p>
+        <ul>
+            <li><strong>InstancedMesh</strong> - 实例化网格</li>
+            <li><strong>批量渲染</strong> - 高性能绘制大量对象</li>
+            <li><strong>实例变换</strong> - 独立的位置、旋转、缩放</li>
+            <li><strong>实例颜色</strong> - 每个实例的独立颜色</li>
+            <li><strong>动态更新</strong> - 实时修改实例属性</li>
+        </ul>
+        <p><strong>性能优势：</strong></p>
+        <p>实例化渲染可以高效绘制数千个相同几何体的对象，大幅提升渲染性能。</p>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>实例数量: <span class="value" id="countValue">1000</span></label>
+            <input type="range" id="instanceCount" min="100" max="10000" value="1000" step="100">
+        </div>
+
+        <div class="control-group">
+            <label>分布范围: <span class="value" id="rangeValue">20</span></label>
+            <input type="range" id="spreadRange" min="10" max="50" value="20" step="2">
+        </div>
+
+        <div class="control-group">
+            <label>动画速度: <span class="value" id="speedValue">1.0</span></label>
+            <input type="range" id="animSpeed" min="0" max="3" value="1" step="0.1">
+        </div>
+
+        <div class="control-group">
+            <label>几何体类型</label>
+            <button id="geomBox" class="active">立方体</button>
+            <button id="geomSphere">球体</button>
+            <button id="geomCone">圆锥</button>
+            <button id="geomCylinder">圆柱</button>
+        </div>
+
+        <div class="control-group">
+            <label>动画模式</label>
+            <button id="animWave" class="active">波浪</button>
+            <button id="animRotate">旋转</button>
+            <button id="animScale">缩放</button>
+            <button id="animSpiral">螺旋</button>
+        </div>
+
+        <div class="control-group">
+            <label>颜色模式</label>
+            <button id="colorRandom" class="active">随机</button>
+            <button id="colorGradient">渐变</button>
+            <button id="colorDistance">距离</button>
+            <button id="colorHeight">高度</button>
+        </div>
+
+        <div class="control-group">
+            <button id="regenerate">重新生成</button>
+            <button id="toggleWireframe">线框模式</button>
+            <button id="resetCamera">重置视角</button>
+        </div>
+
+        <div class="stats" id="stats">
+            实例数：<span class="value">1000</span><br>
+            渲染调用：<span class="value">1</span><br>
+            顶点数：<span class="value">24000</span><br>
+            FPS：<span class="value">60</span>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 基本设置
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x001122);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // 控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxDistance = 100;
+
+        // 变量
+        let instancedMesh;
+        let geometry;
+        let material;
+        let instanceCount = 1000;
+        let spreadRange = 20;
+        let animationSpeed = 1.0;
+        let animationMode = 'wave';
+        let colorMode = 'random';
+        let geometryType = 'box';
+        let wireframe = false;
+
+        // 用于存储实例数据
+        const dummy = new THREE.Object3D();
+        const positions = [];
+        const colors = [];
+        const scales = [];
+        const rotations = [];
+
+        // 性能监控
+        let frameCount = 0;
+        let lastTime = Date.now();
+        let fps = 60;
+
+        // 初始化场景
+        function initScene() {
+            // 添加光照
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(10, 10, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            // 创建实例化网格
+            createInstancedMesh();
+
+            // 设置相机位置
+            camera.position.set(30, 30, 30);
+            controls.target.set(0, 0, 0);
+        }
+
+        function createGeometry(type) {
+            switch(type) {
+                case 'sphere':
+                    return new THREE.SphereGeometry(0.5, 8, 6);
+                case 'cone':
+                    return new THREE.ConeGeometry(0.5, 1, 8);
+                case 'cylinder':
+                    return new THREE.CylinderGeometry(0.4, 0.4, 1, 8);
+                default:
+                    return new THREE.BoxGeometry(1, 1, 1);
+            }
+        }
+
+        function createInstancedMesh() {
+            // 清除旧的网格
+            if (instancedMesh) {
+                scene.remove(instancedMesh);
+                if (geometry) geometry.dispose();
+                if (material) material.dispose();
+            }
+
+            // 创建几何体和材质
+            geometry = createGeometry(geometryType);
+            material = new THREE.MeshStandardMaterial({
+                wireframe: wireframe,
+                vertexColors: true
+            });
+
+            // 创建实例化网格
+            instancedMesh = new THREE.InstancedMesh(geometry, material, instanceCount);
+            instancedMesh.castShadow = true;
+            instancedMesh.receiveShadow = true;
+
+            // 初始化实例数据
+            initInstanceData();
+
+            scene.add(instancedMesh);
+            updateStats();
+        }
+
+        function initInstanceData() {
+            // 清空数组
+            positions.length = 0;
+            colors.length = 0;
+            scales.length = 0;
+            rotations.length = 0;
+
+            // 生成实例数据
+            for (let i = 0; i < instanceCount; i++) {
+                // 位置
+                const position = new THREE.Vector3(
+                    (Math.random() - 0.5) * spreadRange,
+                    (Math.random() - 0.5) * spreadRange,
+                    (Math.random() - 0.5) * spreadRange
+                );
+                positions.push(position);
+
+                // 颜色
+                const color = new THREE.Color();
+                setInstanceColor(color, i, position);
+                colors.push(color);
+
+                // 缩放
+                const scale = 0.5 + Math.random() * 0.5;
+                scales.push(scale);
+
+                // 旋转
+                const rotation = new THREE.Euler(
+                    Math.random() * Math.PI * 2,
+                    Math.random() * Math.PI * 2,
+                    Math.random() * Math.PI * 2
+                );
+                rotations.push(rotation);
+            }
+
+            updateInstanceTransforms();
+        }
+
+        function setInstanceColor(color, index, position) {
+            switch(colorMode) {
+                case 'gradient':
+                    color.setHSL((index / instanceCount) * 0.8, 0.8, 0.6);
+                    break;
+                case 'distance':
+                    const distance = position.length() / spreadRange;
+                    color.setHSL(distance * 0.6, 0.8, 0.6);
+                    break;
+                case 'height':
+                    const height = (position.y + spreadRange/2) / spreadRange;
+                    color.setHSL(height * 0.3 + 0.5, 0.8, 0.6);
+                    break;
+                default: // random
+                    color.setHSL(Math.random() * 0.8, 0.7 + Math.random() * 0.3, 0.5 + Math.random() * 0.3);
+            }
+        }
+
+        function updateInstanceTransforms() {
+            for (let i = 0; i < instanceCount; i++) {
+                dummy.position.copy(positions[i]);
+                dummy.rotation.copy(rotations[i]);
+                dummy.scale.setScalar(scales[i]);
+                dummy.updateMatrix();
+                
+                instancedMesh.setMatrixAt(i, dummy.matrix);
+                instancedMesh.setColorAt(i, colors[i]);
+            }
+            
+            instancedMesh.instanceMatrix.needsUpdate = true;
+            if (instancedMesh.instanceColor) {
+                instancedMesh.instanceColor.needsUpdate = true;
+            }
+        }
+
+        function animateInstances(time) {
+            for (let i = 0; i < instanceCount; i++) {
+                const originalPos = positions[i];
+                const t = time * animationSpeed * 0.001;
+                
+                switch(animationMode) {
+                    case 'wave':
+                        dummy.position.x = originalPos.x;
+                        dummy.position.y = originalPos.y + Math.sin(t + i * 0.1) * 2;
+                        dummy.position.z = originalPos.z;
+                        dummy.rotation.copy(rotations[i]);
+                        dummy.scale.setScalar(scales[i]);
+                        break;
+                        
+                    case 'rotate':
+                        dummy.position.copy(originalPos);
+                        dummy.rotation.y = rotations[i].y + t + i * 0.01;
+                        dummy.rotation.x = rotations[i].x + t * 0.5;
+                        dummy.scale.setScalar(scales[i]);
+                        break;
+                        
+                    case 'scale':
+                        dummy.position.copy(originalPos);
+                        dummy.rotation.copy(rotations[i]);
+                        const scaleOffset = Math.sin(t + i * 0.1) * 0.3;
+                        dummy.scale.setScalar(scales[i] + scaleOffset);
+                        break;
+                        
+                    case 'spiral':
+                        const radius = Math.sqrt(originalPos.x ** 2 + originalPos.z ** 2);
+                        const angle = Math.atan2(originalPos.z, originalPos.x) + t * 0.5;
+                        dummy.position.x = Math.cos(angle) * radius;
+                        dummy.position.y = originalPos.y + Math.sin(t + i * 0.05) * 1;
+                        dummy.position.z = Math.sin(angle) * radius;
+                        dummy.rotation.y = angle;
+                        dummy.scale.setScalar(scales[i]);
+                        break;
+                }
+                
+                dummy.updateMatrix();
+                instancedMesh.setMatrixAt(i, dummy.matrix);
+            }
+            
+            instancedMesh.instanceMatrix.needsUpdate = true;
+        }
+
+        function updateStats() {
+            const stats = document.getElementById('stats');
+            const vertices = geometry.attributes.position.count * instanceCount;
+            
+            stats.innerHTML = `
+                实例数：<span class="value">${instanceCount}</span><br>
+                渲染调用：<span class="value">1</span><br>
+                顶点数：<span class="value">${vertices.toLocaleString()}</span><br>
+                FPS：<span class="value">${fps}</span>
+            `;
+        }
+
+        // 事件监听
+        document.getElementById('instanceCount').addEventListener('input', (e) => {
+            instanceCount = parseInt(e.target.value);
+            document.getElementById('countValue').textContent = instanceCount;
+            createInstancedMesh();
+        });
+
+        document.getElementById('spreadRange').addEventListener('input', (e) => {
+            spreadRange = parseInt(e.target.value);
+            document.getElementById('rangeValue').textContent = spreadRange;
+            initInstanceData();
+        });
+
+        document.getElementById('animSpeed').addEventListener('input', (e) => {
+            animationSpeed = parseFloat(e.target.value);
+            document.getElementById('speedValue').textContent = animationSpeed.toFixed(1);
+        });
+
+        // 几何体类型按钮
+        document.getElementById('geomBox').addEventListener('click', () => {
+            geometryType = 'box';
+            document.querySelectorAll('[id^="geom"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('geomBox').classList.add('active');
+            createInstancedMesh();
+        });
+
+        document.getElementById('geomSphere').addEventListener('click', () => {
+            geometryType = 'sphere';
+            document.querySelectorAll('[id^="geom"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('geomSphere').classList.add('active');
+            createInstancedMesh();
+        });
+
+        document.getElementById('geomCone').addEventListener('click', () => {
+            geometryType = 'cone';
+            document.querySelectorAll('[id^="geom"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('geomCone').classList.add('active');
+            createInstancedMesh();
+        });
+
+        document.getElementById('geomCylinder').addEventListener('click', () => {
+            geometryType = 'cylinder';
+            document.querySelectorAll('[id^="geom"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('geomCylinder').classList.add('active');
+            createInstancedMesh();
+        });
+
+        // 动画模式按钮
+        document.getElementById('animWave').addEventListener('click', () => {
+            animationMode = 'wave';
+            document.querySelectorAll('[id^="anim"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('animWave').classList.add('active');
+        });
+
+        document.getElementById('animRotate').addEventListener('click', () => {
+            animationMode = 'rotate';
+            document.querySelectorAll('[id^="anim"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('animRotate').classList.add('active');
+        });
+
+        document.getElementById('animScale').addEventListener('click', () => {
+            animationMode = 'scale';
+            document.querySelectorAll('[id^="anim"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('animScale').classList.add('active');
+        });
+
+        document.getElementById('animSpiral').addEventListener('click', () => {
+            animationMode = 'spiral';
+            document.querySelectorAll('[id^="anim"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('animSpiral').classList.add('active');
+        });
+
+        // 颜色模式按钮
+        document.getElementById('colorRandom').addEventListener('click', () => {
+            colorMode = 'random';
+            document.querySelectorAll('[id^="color"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('colorRandom').classList.add('active');
+            initInstanceData();
+        });
+
+        document.getElementById('colorGradient').addEventListener('click', () => {
+            colorMode = 'gradient';
+            document.querySelectorAll('[id^="color"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('colorGradient').classList.add('active');
+            initInstanceData();
+        });
+
+        document.getElementById('colorDistance').addEventListener('click', () => {
+            colorMode = 'distance';
+            document.querySelectorAll('[id^="color"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('colorDistance').classList.add('active');
+            initInstanceData();
+        });
+
+        document.getElementById('colorHeight').addEventListener('click', () => {
+            colorMode = 'height';
+            document.querySelectorAll('[id^="color"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('colorHeight').classList.add('active');
+            initInstanceData();
+        });
+
+        // 其他控制按钮
+        document.getElementById('regenerate').addEventListener('click', () => {
+            initInstanceData();
+        });
+
+        document.getElementById('toggleWireframe').addEventListener('click', () => {
+            wireframe = !wireframe;
+            material.wireframe = wireframe;
+        });
+
+        document.getElementById('resetCamera').addEventListener('click', () => {
+            camera.position.set(30, 30, 30);
+            controls.target.set(0, 0, 0);
+            controls.update();
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 动画循环
+        function animate(time) {
+            requestAnimationFrame(animate);
+            
+            // 更新实例动画
+            animateInstances(time);
+            
+            // 计算FPS
+            frameCount++;
+            const currentTime = Date.now();
+            if (currentTime - lastTime > 1000) {
+                fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+                frameCount = 0;
+                lastTime = currentTime;
+                updateStats();
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // 初始化
+        initScene();
+        animate();
+    </script>
+</body>
+</html>

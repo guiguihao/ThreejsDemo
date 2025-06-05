@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>15 - 精灵和广告牌 | Three.js基础</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            padding: 5px;
+            font-size: 14px;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 100;
+        }
+
+        .control-panel {
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            width: 250px;
+            z-index: 100;
+        }
+
+        .control-panel h3 {
+            margin-bottom: 10px;
+            font-size: 14px;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+
+        .control-group {
+            margin-bottom: 10px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin: 5px 0;
+            font-size: 12px;
+            width: 100%;
+        }
+
+        button:hover {
+            background: #3b78e7;
+        }
+
+        .sprites-info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            max-width: 500px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .sprites-info h3 {
+            margin-bottom: 10px;
+            font-size: 16px;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+
+        .sprites-info p {
+            margin-bottom: 10px;
+        }
+
+        .sprites-info ul {
+            margin-left: 20px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">15 - 精灵和广告牌 | Three.js基础教程</div>
+    <div class="control-panel">
+        <h3>精灵和广告牌控制面板</h3>
+        <div class="control-group">
+            <button id="toggle-sprites">切换精灵可见性</button>
+            <button id="toggle-billboards">切换广告牌可见性</button>
+            <button id="toggle-text-sprites">切换文本精灵</button>
+        </div>
+        <div class="control-group">
+            <button id="add-random-sprites">添加随机精灵</button>
+            <button id="add-particle-system">添加粒子系统</button>
+        </div>
+        <div class="control-group">
+            <button id="toggle-animation">开始/停止动画</button>
+            <button id="toggle-helpers">显示/隐藏辅助工具</button>
+        </div>
+    </div>
+
+    <div class="sprites-info">
+        <h3>精灵和广告牌介绍</h3>
+        <p>精灵(Sprite)和广告牌(Billboard)是Three.js中用于创建总是面向摄像机的平面对象的技术。它们主要用于：</p>
+        <ul>
+            <li>粒子效果（烟雾、火焰、雨等）</li>
+            <li>2D UI元素在3D空间</li>
+            <li>标签和注释</li>
+            <li>3D场景中的图标</li>
+            <li>低性能设备上的远景物体</li>
+        </ul>
+        <p><strong>精灵(Sprite)</strong>: 使用THREE.Sprite类，是一个总是面向摄像机的特殊平面网格。</p>
+        <p><strong>广告牌(Billboard)</strong>: 一种技术，使用常规网格并通过代码更新它们的旋转来面向摄像机。</p>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.159.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.159.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        // 初始化场景
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a);
+        scene.fog = new THREE.Fog(0x1a1a1a, 10, 50);
+
+        // 初始化相机
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 5, 15);
+
+        // 初始化渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // 初始化CSS2D渲染器用于HTML标签
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0';
+        labelRenderer.domElement.style.pointerEvents = 'none';
+        document.body.appendChild(labelRenderer.domElement);
+
+        // 创建轨道控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // 添加环境光和方向光
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 10, 7);
+        scene.add(directionalLight);
+
+        // 创建网格地面
+        const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
+        scene.add(gridHelper);
+
+        // 创建坐标轴辅助
+        const axesHelper = new THREE.AxesHelper(5);
+        scene.add(axesHelper);
+
+        // 创建一些3D对象作为示例环境
+        const objects = createEnvironmentObjects();
+        scene.add(objects);
+
+        // 为创建精灵预加载材质和纹理
+        const textureLoader = new THREE.TextureLoader();
+
+        // 加载常用的精灵纹理
+        const spriteTextures = {};
+        const texturePaths = {
+            particle: 'https://threejs.org/examples/textures/sprites/circle.png',
+            spark: 'https://threejs.org/examples/textures/sprites/spark1.png',
+            snowflake: 'https://threejs.org/examples/textures/snowflake1.png',
+        };
+
+        // 使用内置画布API创建一个文本精灵纹理
+        function createTextTexture(text, fontSize = 32, color = '#ffffff', backgroundColor = 'rgba(0,0,0,0.5)') {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            
+            // 设置画布大小
+            canvas.width = 256;
+            canvas.height = 256;
+            
+            // 绘制背景（可选）
+            if (backgroundColor) {
+                context.fillStyle = backgroundColor;
+                context.fillRect(0, 0, canvas.width, canvas.height);
+            }
+            
+            // 绘制文本
+            context.font = `${fontSize}px Arial, sans-serif`;
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillStyle = color;
+            context.fillText(text, canvas.width / 2, canvas.height / 2);
+            
+            // 创建纹理
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            
+            return texture;
+        }
+
+        // 存储所有为这个例子创建的对象，以便于管理
+        const allSprites = [];
+        const allBillboards = [];
+        const allTextSprites = [];
+        const allParticleSystems = [];
+
+        // 1. 创建简单的精灵对象
+        function createSprites() {
+            // 创建一个基本精灵材质
+            const particleTexture = textureLoader.load(texturePaths.particle);
+            const spriteMaterial = new THREE.SpriteMaterial({ 
+                map: particleTexture,
+                color: 0xffffff,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+
+            // 创建几个示例精灵
+            const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff];
+            const sprites = [];
+            
+            for (let i = 0; i < 10; i++) {
+                const material = spriteMaterial.clone();
+                material.color.setHex(colors[i % colors.length]);
+                
+                const sprite = new THREE.Sprite(material);
+                sprite.position.set(
+                    (Math.random() - 0.5) * 10,
+                    Math.random() * 5 + 1,
+                    (Math.random() - 0.5) * 10
+                );
+                
+                // 设置精灵大小
+                sprite.scale.set(0.5, 0.5, 1);
+                
+                scene.add(sprite);
+                sprites.push(sprite);
+                allSprites.push(sprite);
+            }
+            
+            return sprites;
+        }
+
+        // 2. 创建广告牌（总是面向相机的平面）
+        function createBillboards() {
+            // 使用普通的网格和Materials，并在渲染循环中使其面向相机
+            const billboardGeometry = new THREE.PlaneGeometry(1, 1);
+            const billboards = [];
+            
+            const textures = [
+                textureLoader.load(texturePaths.spark),
+                createTextTexture('广告牌1', 24, '#ffffff', 'rgba(255,0,0,0.5)'),
+                createTextTexture('广告牌2', 24, '#ffffff', 'rgba(0,255,0,0.5)'),
+                createTextTexture('广告牌3', 24, '#ffffff', 'rgba(0,0,255,0.5)'),
+            ];
+            
+            for (let i = 0; i < 5; i++) {
+                const texture = textures[i % textures.length];
+                
+                const billboardMaterial = new THREE.MeshBasicMaterial({
+                    map: texture,
+                    side: THREE.DoubleSide,
+                    transparent: true
+                });
+                
+                const billboard = new THREE.Mesh(billboardGeometry, billboardMaterial);
+                billboard.position.set(
+                    (Math.random() - 0.5) * 10,
+                    Math.random() * 5 + 1,
+                    (Math.random() - 0.5) * 10
+                );
+                
+                // 为广告牌添加标记，在渲染循环中用来识别
+                billboard.isBillboard = true;
+                
+                scene.add(billboard);
+                billboards.push(billboard);
+                allBillboards.push(billboard);
+            }
+            
+            return billboards;
+        }
+
+        // 3. 创建文本精灵
+        function createTextSprites() {
+            const texts = ['精灵标签1', '精灵标签2', '精灵标签3', '精灵标签4', '精灵标签5'];
+            const textSprites = [];
+            
+            for (let i = 0; i < texts.length; i++) {
+                // 为每个文本创建一个自定义纹理
+                const texture = createTextTexture(
+                    texts[i], 
+                    24, 
+                    '#ffffff', 
+                    `rgba(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255},0.7)`
+                );
+                
+                const spriteMaterial = new THREE.SpriteMaterial({ 
+                    map: texture,
+                    transparent: true
+                });
+                
+                const sprite = new THREE.Sprite(spriteMaterial);
+                sprite.position.set(
+                    (Math.random() - 0.5) * 8,
+                    Math.random() * 5 + 2,
+                    (Math.random() - 0.5) * 8
+                );
+                
+                sprite.scale.set(2, 2, 1);
+                
+                scene.add(sprite);
+                textSprites.push(sprite);
+                allTextSprites.push(sprite);
+            }
+
+            // 添加一个HTML标签作为示例（使用CSS2DObject）
+            for (const obj of objects.children) {
+                if (obj.name === 'cube') {
+                    const divElement = document.createElement('div');
+                    divElement.className = 'label';
+                    divElement.textContent = '3D立方体';
+                    divElement.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+                    divElement.style.color = 'white';
+                    divElement.style.padding = '5px 10px';
+                    divElement.style.borderRadius = '4px';
+                    divElement.style.fontSize = '14px';
+                    divElement.style.pointerEvents = 'none';
+                    
+                    const label = new CSS2DObject(divElement);
+                    label.position.set(0, 1.2, 0);
+                    obj.add(label);
+                }
+            }
+            
+            return textSprites;
+        }
+
+        // 4. 创建粒子系统（使用大量精灵）
+        function createParticleSystem() {
+            // 加载纹理
+            const particleTexture = textureLoader.load(texturePaths.particle);
+            
+            // 创建一个包含所有粒子的组
+            const particleSystem = new THREE.Group();
+            particleSystem.name = 'particleSystem';
+            
+            // 创建多个精灵
+            const particleCount = 200;
+            const radius = 3;
+            
+            for (let i = 0; i < particleCount; i++) {
+                // 随机颜色
+                const color = new THREE.Color();
+                color.setHSL(Math.random(), 0.9, 0.7);
+                
+                const spriteMaterial = new THREE.SpriteMaterial({ 
+                    map: particleTexture,
+                    color: color,
+                    transparent: true,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    opacity: Math.random() * 0.5 + 0.5
+                });
+                
+                const sprite = new THREE.Sprite(spriteMaterial);
+                
+                // 在球体范围内随机分布
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                const r = radius * Math.cbrt(Math.random()); // 立方根分布使粒子更均匀
+                
+                sprite.position.x = r * Math.sin(phi) * Math.cos(theta);
+                sprite.position.y = r * Math.sin(phi) * Math.sin(theta);
+                sprite.position.z = r * Math.cos(phi);
+                
+                // 随机大小
+                const size = Math.random() * 0.2 + 0.1;
+                sprite.scale.set(size, size, 1);
+                
+                // 为动画存储一些额外信息
+                sprite.userData.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.01,
+                    (Math.random() - 0.5) * 0.01,
+                    (Math.random() - 0.5) * 0.01
+                );
+                
+                particleSystem.add(sprite);
+            }
+            
+            // 设置粒子系统的位置
+            particleSystem.position.set(0, 5, 0);
+            
+            scene.add(particleSystem);
+            allParticleSystems.push(particleSystem);
+            
+            return particleSystem;
+        }
+
+        // 创建环境对象
+        function createEnvironmentObjects() {
+            const group = new THREE.Group();
+            
+            // 添加一个立方体
+            const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0x8844ff });
+            const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+            cube.position.set(-3, 0.5, 0);
+            cube.name = 'cube';
+            group.add(cube);
+            
+            // 添加一个球体
+            const sphereGeometry = new THREE.SphereGeometry(0.7, 32, 32);
+            const sphereMaterial = new THREE.MeshStandardMaterial({ color: 0x44ff88 });
+            const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+            sphere.position.set(0, 0.7, 0);
+            group.add(sphere);
+            
+            // 添加一个圆柱体
+            const cylinderGeometry = new THREE.CylinderGeometry(0.5, 0.5, 1.5, 32);
+            const cylinderMaterial = new THREE.MeshStandardMaterial({ color: 0xff8844 });
+            const cylinder = new THREE.Mesh(cylinderGeometry, cylinderMaterial);
+            cylinder.position.set(3, 0.75, 0);
+            group.add(cylinder);
+            
+            // 添加地板
+            const planeGeometry = new THREE.PlaneGeometry(20, 20);
+            const planeMaterial = new THREE.MeshStandardMaterial({
+                color: 0x999999,
+                side: THREE.DoubleSide
+            });
+            const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+            plane.rotation.x = -Math.PI / 2;
+            plane.position.y = 0;
+            group.add(plane);
+            
+            return group;
+        }
+
+        // 创建初始的精灵和广告牌
+        const sprites = createSprites();
+        const billboards = createBillboards();
+        const textSprites = createTextSprites();
+
+        // 添加事件监听器
+        document.getElementById('toggle-sprites').addEventListener('click', () => {
+            allSprites.forEach(sprite => {
+                sprite.visible = !sprite.visible;
+            });
+        });
+
+        document.getElementById('toggle-billboards').addEventListener('click', () => {
+            allBillboards.forEach(billboard => {
+                billboard.visible = !billboard.visible;
+            });
+        });
+
+        document.getElementById('toggle-text-sprites').addEventListener('click', () => {
+            allTextSprites.forEach(sprite => {
+                sprite.visible = !sprite.visible;
+            });
+        });
+
+        document.getElementById('add-random-sprites').addEventListener('click', () => {
+            createSprites();
+        });
+
+        document.getElementById('add-particle-system').addEventListener('click', () => {
+            createParticleSystem();
+        });
+
+        let isAnimating = true;
+        document.getElementById('toggle-animation').addEventListener('click', () => {
+            isAnimating = !isAnimating;
+            document.getElementById('toggle-animation').textContent = 
+                isAnimating ? '停止动画' : '开始动画';
+        });
+
+        let helpersVisible = true;
+        document.getElementById('toggle-helpers').addEventListener('click', () => {
+            helpersVisible = !helpersVisible;
+            axesHelper.visible = helpersVisible;
+            gridHelper.visible = helpersVisible;
+            document.getElementById('toggle-helpers').textContent = 
+                helpersVisible ? '隐藏辅助工具' : '显示辅助工具';
+        });
+
+        // 响应窗口大小变化
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 动画循环
+        let time = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.01;
+            
+            if (isAnimating) {
+                // 精灵动画
+                allSprites.forEach(sprite => {
+                    sprite.position.y += Math.sin(time + sprite.position.x) * 0.01;
+                    sprite.material.opacity = 0.5 + Math.sin(time * 2 + sprite.position.z) * 0.25;
+                });
+                
+                // 使广告牌始终面向相机
+                allBillboards.forEach(billboard => {
+                    billboard.lookAt(camera.position);
+                });
+                
+                // 文本精灵动画
+                allTextSprites.forEach(sprite => {
+                    sprite.position.y += Math.cos(time + sprite.position.x * 2) * 0.01;
+                });
+                
+                // 粒子系统动画
+                allParticleSystems.forEach(particleSystem => {
+                    particleSystem.rotation.y += 0.005;
+                    particleSystem.rotation.x += 0.002;
+                    
+                    // 更新每个粒子
+                    particleSystem.children.forEach(sprite => {
+                        if (sprite.userData.velocity) {
+                            sprite.position.add(sprite.userData.velocity);
+                            
+                            // 粒子到达边界后反弹
+                            const limit = 4;
+                            ['x', 'y', 'z'].forEach(axis => {
+                                if (Math.abs(sprite.position[axis]) > limit) {
+                                    sprite.userData.velocity[axis] *= -1;
+                                }
+                            });
+                        }
+                    });
+                });
+            }
+            
+            // 更新控制器
+            controls.update();
+            
+            // 渲染场景
+            renderer.render(scene, camera);
+            labelRenderer.render(scene, camera);
+        }
+        
+        animate();
+    </script>
+</body>
+</html>

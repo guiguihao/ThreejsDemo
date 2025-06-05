@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>09_坐标系统</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 5px;
+            max-width: 350px;
+        }
+        .coordinates {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 5px;
+            width: 230px;
+        }
+        .coordinates table {
+            width: 100%;
+        }
+        .coordinates td {
+            padding: 2px;
+        }
+        .coordinates .axis-x {
+            color: #ff0000;
+        }
+        .coordinates .axis-y {
+            color: #00ff00;
+        }
+        .coordinates .axis-z {
+            color: #0000ff;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 5px;
+        }
+        button {
+            display: block;
+            margin: 5px 0;
+            padding: 5px 10px;
+            width: 150px;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>Three.js 基础 - 坐标系统</h3>
+        <p>本示例演示了Three.js中的坐标系统概念：</p>
+        <ul>
+            <li>世界坐标系 - 整个场景的全局坐标系</li>
+            <li>局部坐标系 - 每个对象相对于其父对象的坐标</li>
+            <li>屏幕坐标系 - 2D屏幕上的坐标</li>
+            <li>纹理坐标系 - UV映射坐标</li>
+            <li>坐标变换 - 对象的位置、旋转和缩放</li>
+        </ul>
+        <p>使用右侧按钮切换不同的坐标系统查看。鼠标移动查看坐标转换。</p>
+    </div>
+    
+    <div class="coordinates">
+        <h4>坐标信息</h4>
+        <table>
+            <tr>
+                <td>鼠标屏幕坐标:</td>
+                <td id="mouse-screen"></td>
+            </tr>
+            <tr>
+                <td>鼠标世界坐标:</td>
+                <td id="mouse-world"></td>
+            </tr>
+            <tr>
+                <td>对象世界坐标:</td>
+                <td id="object-world"></td>
+            </tr>
+            <tr>
+                <td>对象局部坐标:</td>
+                <td id="object-local"></td>
+            </tr>
+            <tr>
+                <td>相机位置:</td>
+                <td id="camera-position"></td>
+            </tr>
+        </table>
+    </div>
+    
+    <div class="controls">
+        <button id="worldBtn">世界坐标系</button>
+        <button id="localBtn">局部坐标系</button>
+        <button id="childBtn">层级坐标系</button>
+        <button id="screenBtn">屏幕坐标系</button>
+        <button id="textureBtn">纹理坐标系</button>
+        <button id="transformBtn">坐标变换</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        // 导入Three.js库
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { TransformControls } from 'three/addons/controls/TransformControls.js';
+        
+        // 创建场景
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x222222);
+        
+        // 创建相机
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(5, 5, 10);
+        
+        // 创建渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+        
+        // 创建轨道控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        
+        // 创建变换控制器
+        const transformControls = new TransformControls(camera, renderer.domElement);
+        transformControls.size = 0.75;
+        scene.add(transformControls);
+        
+        // 当变换控制器激活时，禁用轨道控制器
+        transformControls.addEventListener('dragging-changed', function(event) {
+            controls.enabled = !event.value;
+        });
+        
+        // 添加灯光
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 10, 5);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+        
+        // 创建世界坐标系网格
+        const gridHelper = new THREE.GridHelper(10, 10, 0x444444, 0x222222);
+        scene.add(gridHelper);
+        
+        // 创建世界坐标系轴
+        const worldAxisHelper = new THREE.AxesHelper(5);
+        scene.add(worldAxisHelper);
+        
+        // 创建一个文本标签生成器
+        function createTextLabel(text, position, color = 0xffffff) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 256;
+            canvas.height = 64;
+            
+            // 背景
+            context.fillStyle = 'rgba(0,0,0,0.7)';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 边框
+            context.strokeStyle = color !== null ? `#${color.toString(16).padStart(6, '0')}` : '#ffffff';
+            context.lineWidth = 2;
+            context.strokeRect(2, 2, canvas.width-4, canvas.height-4);
+            
+            // 文字
+            context.font = 'Bold 20px Arial';
+            context.fillStyle = color !== null ? `#${color.toString(16).padStart(6, '0')}` : '#ffffff';
+            context.fillText(text, 10, canvas.height/2 + 8);
+            
+            // 创建精灵材质
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({ 
+                map: texture,
+                transparent: true
+            });
+            
+            // 创建精灵并设置位置
+            const sprite = new THREE.Sprite(material);
+            sprite.position.copy(position);
+            sprite.scale.set(2, 0.5, 1);
+            
+            return sprite;
+        }
+        
+        // 当前演示模式
+        let currentMode = 'world';
+        let demoObjects = [];
+        
+        // 世界坐标系演示
+        function setupWorldCoordinateDemo() {
+            clearDemo();
+            currentMode = 'world';
+            
+            // 显示网格和世界坐标轴
+            gridHelper.visible = true;
+            worldAxisHelper.visible = true;
+            
+            // 创建主要对象
+            const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const boxMaterial = new THREE.MeshStandardMaterial({ color: 0x03a9f4 });
+            const box = new THREE.Mesh(boxGeometry, boxMaterial);
+            box.position.set(0, 0.5, 0);
+            box.castShadow = true;
+            box.name = 'mainObject';
+            scene.add(box);
+            demoObjects.push(box);
+            
+            // 坐标轴标签
+            const xAxisLabel = createTextLabel('X轴', new THREE.Vector3(5.5, 0, 0), 0xff0000);
+            const yAxisLabel = createTextLabel('Y轴', new THREE.Vector3(0, 5.5, 0), 0x00ff00);
+            const zAxisLabel = createTextLabel('Z轴', new THREE.Vector3(0, 0, 5.5), 0x0000ff);
+            scene.add(xAxisLabel);
+            scene.add(yAxisLabel);
+            scene.add(zAxisLabel);
+            demoObjects.push(xAxisLabel, yAxisLabel, zAxisLabel);
+            
+            // 创建参考点
+            const positions = [
+                { pos: new THREE.Vector3(3, 0.5, 3), color: 0xff5722 },
+                { pos: new THREE.Vector3(-3, 0.5, 3), color: 0xffeb3b },
+                { pos: new THREE.Vector3(-3, 0.5, -3), color: 0x8bc34a },
+                { pos: new THREE.Vector3(3, 0.5, -3), color: 0x9c27b0 }
+            ];
+            
+            positions.forEach((p, i) => {
+                const sphereGeometry = new THREE.SphereGeometry(0.3, 32, 32);
+                const sphereMaterial = new THREE.MeshStandardMaterial({ color: p.color });
+                const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+                sphere.position.copy(p.pos);
+                sphere.castShadow = true;
+                scene.add(sphere);
+                demoObjects.push(sphere);
+                
+                // 添加坐标标签
+                const label = createTextLabel(
+                    `点 ${i+1}: (${p.pos.x.toFixed(1)}, ${p.pos.y.toFixed(1)}, ${p.pos.z.toFixed(1)})`,
+                    new THREE.Vector3(p.pos.x, p.pos.y + 0.7, p.pos.z),
+                    p.color
+                );
+                scene.add(label);
+                demoObjects.push(label);
+            });
+            
+            // 绑定变换控制器到主对象
+            transformControls.attach(box);
+            transformControls.setMode('translate');
+        }
+        
+        // 局部坐标系演示
+        function setupLocalCoordinateDemo() {
+            clearDemo();
+            currentMode = 'local';
+            
+            // 显示网格和世界坐标轴
+            gridHelper.visible = true;
+            worldAxisHelper.visible = true;
+            
+            // 创建一个倾斜的平台作为父对象
+            const platformGeometry = new THREE.BoxGeometry(4, 0.5, 4);
+            const platformMaterial = new THREE.MeshStandardMaterial({ color: 0x795548 });
+            const platform = new THREE.Mesh(platformGeometry, platformMaterial);
+            platform.position.set(0, 0.25, 0);
+            platform.rotation.set(0, Math.PI / 4, Math.PI / 12);
+            platform.castShadow = true;
+            platform.receiveShadow = true;
+            platform.name = 'platform';
+            scene.add(platform);
+            demoObjects.push(platform);
+            
+            // 添加平台的局部坐标系
+            const platformLocalAxes = new THREE.AxesHelper(2);
+            platform.add(platformLocalAxes);
+            
+            // 添加子对象
+            const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const boxMaterial = new THREE.MeshStandardMaterial({ color: 0x03a9f4 });
+            const box = new THREE.Mesh(boxGeometry, boxMaterial);
+            box.position.set(0, 1, 0);  // 局部坐标中在平台上方1个单位
+            box.castShadow = true;
+            box.name = 'childObject';
+            platform.add(box);  // 注意这里是添加到平台上，而非场景
+            
+            // 添加子对象的局部坐标系
+            const boxLocalAxes = new THREE.AxesHelper(1);
+            box.add(boxLocalAxes);
+            
+            // 添加坐标标签
+            const worldLabel = createTextLabel(
+                "世界坐标系",
+                new THREE.Vector3(5, 0.5, 0),
+                0xffffff
+            );
+            scene.add(worldLabel);
+            demoObjects.push(worldLabel);
+            
+            const platformLabel = createTextLabel(
+                "平台局部坐标系",
+                new THREE.Vector3(0, 2, 0),
+                0x795548
+            );
+            platform.add(platformLabel);
+            
+            const boxLabel = createTextLabel(
+                "方块局部坐标系",
+                new THREE.Vector3(0, 1.5, 0),
+                0x03a9f4
+            );
+            box.add(boxLabel);
+            
+            // 绑定变换控制器到平台
+            transformControls.attach(platform);
+            transformControls.setMode('rotate');
+        }
+        
+        // 层级坐标系演示
+        function setupHierarchyCoordinateDemo() {
+            clearDemo();
+            currentMode = 'child';
+            
+            // 隐藏网格和世界坐标轴
+            gridHelper.visible = true;
+            worldAxisHelper.visible = true;
+            
+            // 创建太阳系模型
+            // 太阳（父对象）
+            const sunGeometry = new THREE.SphereGeometry(1, 32, 32);
+            const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+            const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+            sun.name = 'sun';
+            sun.userData.rotationSpeed = 0.005;
+            scene.add(sun);
+            demoObjects.push(sun);
+            
+            // 添加太阳的坐标轴
+            const sunAxes = new THREE.AxesHelper(1.5);
+            sun.add(sunAxes);
+            
+            // 地球轨道
+            const earthOrbit = new THREE.Object3D();
+            earthOrbit.name = 'earthOrbit';
+            earthOrbit.userData.rotationSpeed = 0.01;
+            sun.add(earthOrbit);
+            
+            // 地球
+            const earthGeometry = new THREE.SphereGeometry(0.4, 32, 32);
+            const earthMaterial = new THREE.MeshStandardMaterial({ color: 0x2233ff });
+            const earth = new THREE.Mesh(earthGeometry, earthMaterial);
+            earth.position.x = 3;
+            earth.name = 'earth';
+            earth.userData.rotationSpeed = 0.02;
+            earthOrbit.add(earth);
+            
+            // 添加地球的坐标轴
+            const earthAxes = new THREE.AxesHelper(0.6);
+            earth.add(earthAxes);
+            
+            // 月球轨道
+            const moonOrbit = new THREE.Object3D();
+            moonOrbit.name = 'moonOrbit';
+            moonOrbit.userData.rotationSpeed = 0.03;
+            earth.add(moonOrbit);
+            
+            // 月球
+            const moonGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+            const moonMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa });
+            const moon = new THREE.Mesh(moonGeometry, moonMaterial);
+            moon.position.x = 0.8;
+            moon.name = 'moon';
+            moon.userData.rotationSpeed = 0.01;
+            moonOrbit.add(moon);
+            
+            // 添加月球的坐标轴
+            const moonAxes = new THREE.AxesHelper(0.2);
+            moon.add(moonAxes);
+            
+            // 添加标签
+            const sunLabel = createTextLabel("太阳 (中心/父对象)", new THREE.Vector3(0, 1.5, 0), 0xffff00);
+            sun.add(sunLabel);
+            
+            const earthLabel = createTextLabel("地球 (太阳的子对象)", new THREE.Vector3(0, 0.8, 0), 0x2233ff);
+            earth.add(earthLabel);
+            
+            const moonLabel = createTextLabel("月球 (地球的子对象)", new THREE.Vector3(0, 0.3, 0), 0xaaaaaa);
+            moon.add(moonLabel);
+            
+            // 绑定变换控制器到太阳
+            transformControls.attach(sun);
+            transformControls.setMode('rotate');
+        }
+        
+        // 屏幕坐标系演示
+        function setupScreenCoordinateDemo() {
+            clearDemo();
+            currentMode = 'screen';
+            
+            // 隐藏网格和世界坐标轴
+            gridHelper.visible = false;
+            worldAxisHelper.visible = false;
+            
+            // 创建一个平面用于显示屏幕坐标系
+            const planeGeometry = new THREE.PlaneGeometry(2, 2);
+            const canvasTexture = createCoordinateCanvas();
+            const planeMaterial = new THREE.MeshBasicMaterial({ 
+                map: canvasTexture,
+                transparent: true,
+                side: THREE.DoubleSide
+            });
+            const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+            plane.name = 'coordPlane';
+            scene.add(plane);
+            demoObjects.push(plane);
+            
+            // 向场景中添加一些3D对象
+            const boxGeometry = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+            
+            const positions = [
+                { pos: new THREE.Vector3(0, 0, 0.1), color: 0xf44336 },
+                { pos: new THREE.Vector3(0.5, 0.5, 0.1), color: 0x4caf50 },
+                { pos: new THREE.Vector3(-0.5, 0.5, 0.1), color: 0x2196f3 },
+                { pos: new THREE.Vector3(0.5, -0.5, 0.1), color: 0xff9800 },
+                { pos: new THREE.Vector3(-0.5, -0.5, 0.1), color: 0x9c27b0 }
+            ];
+            
+            positions.forEach((p, i) => {
+                const boxMaterial = new THREE.MeshStandardMaterial({ color: p.color });
+                const box = new THREE.Mesh(boxGeometry, boxMaterial);
+                box.position.copy(p.pos);
+                box.name = `screenObject_${i}`;
+                box.userData.color = p.color;
+                scene.add(box);
+                demoObjects.push(box);
+                
+                // 计算该位置对应的屏幕坐标
+                const screenPos = p.pos.clone().project(camera);
+                const screenX = (screenPos.x * 0.5 + 0.5) * window.innerWidth;
+                const screenY = (-screenPos.y * 0.5 + 0.5) * window.innerHeight;
+                
+                const label = createTextLabel(
+                    `3D: (${p.pos.x.toFixed(1)}, ${p.pos.y.toFixed(1)}, ${p.pos.z.toFixed(1)})\n` +
+                    `2D: (${screenX.toFixed(0)}, ${screenY.toFixed(0)})`,
+                    p.pos.clone().add(new THREE.Vector3(0, 0.2, 0)),
+                    p.color
+                );
+                scene.add(label);
+                demoObjects.push(label);
+            });
+            
+            // 设置相机位置以正对平面
+            camera.position.set(0, 0, 3);
+            camera.lookAt(0, 0, 0);
+            controls.target.set(0, 0, 0);
+            controls.update();
+            
+            // 不使用变换控制器
+            transformControls.detach();
+            
+            // 创建坐标系绘图
+            function createCoordinateCanvas() {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = 1024;
+                canvas.height = 1024;
+                
+                // 填充背景
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // 绘制坐标轴
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                
+                // X轴
+                ctx.moveTo(0, canvas.height / 2);
+                ctx.lineTo(canvas.width, canvas.height / 2);
+                
+                // Y轴
+                ctx.moveTo(canvas.width / 2, 0);
+                ctx.lineTo(canvas.width / 2, canvas.height);
+                
+                ctx.stroke();
+                
+                // 标签
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '40px Arial';
+                ctx.fillText('屏幕坐标系 (Screen Coordinates)', canvas.width / 2 - 300, 50);
+                
+                // X轴标签
+                ctx.fillStyle = '#ff0000';
+                ctx.fillText('X', canvas.width - 30, canvas.height / 2 - 15);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText('0', canvas.width / 2 + 10, canvas.height / 2 - 15);
+                
+                // Y轴标签
+                ctx.fillStyle = '#00ff00';
+                ctx.fillText('Y', canvas.width / 2 + 15, 30);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText('0', canvas.width / 2 + 15, canvas.height / 2 + 35);
+                
+                // 网格
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                ctx.lineWidth = 1;
+                const gridSize = 100;
+                
+                // 水平网格线
+                for (let i = gridSize; i < canvas.height; i += gridSize) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, canvas.height / 2 - i);
+                    ctx.lineTo(canvas.width, canvas.height / 2 - i);
+                    ctx.stroke();
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(0, canvas.height / 2 + i);
+                    ctx.lineTo(canvas.width, canvas.height / 2 + i);
+                    ctx.stroke();
+                }
+                
+                // 垂直网格线
+                for (let i = gridSize; i < canvas.width; i += gridSize) {
+                    ctx.beginPath();
+                    ctx.moveTo(canvas.width / 2 - i, 0);
+                    ctx.lineTo(canvas.width / 2 - i, canvas.height);
+                    ctx.stroke();
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(canvas.width / 2 + i, 0);
+                    ctx.lineTo(canvas.width / 2 + i, canvas.height);
+                    ctx.stroke();
+                }
+                
+                return new THREE.CanvasTexture(canvas);
+            }
+        }
+        
+        // 纹理坐标系演示
+        function setupTextureCoordinateDemo() {
+            clearDemo();
+            currentMode = 'texture';
+            
+            // 隐藏网格和世界坐标轴
+            gridHelper.visible = false;
+            worldAxisHelper.visible = false;
+            
+            // 创建UV网格纹理
+            const textureCanvas = document.createElement('canvas');
+            const ctx = textureCanvas.getContext('2d');
+            textureCanvas.width = 1024;
+            textureCanvas.height = 1024;
+            
+            // 绘制UV网格
+            ctx.fillStyle = '#444444';
+            ctx.fillRect(0, 0, textureCanvas.width, textureCanvas.height);
+            
+            // 绘制主网格线
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            
+            // 垂直线
+            for (let i = 0; i <= 10; i++) {
+                const x = i * (textureCanvas.width / 10);
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, textureCanvas.height);
+                ctx.stroke();
+                
+                // 添加UV标签
+                if (i < 10) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '30px Arial';
+                    ctx.fillText(`U: ${i/10}`, x + 10, 40);
+                }
+            }
+            
+            // 水平线
+            for (let i = 0; i <= 10; i++) {
+                const y = i * (textureCanvas.height / 10);
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(textureCanvas.width, y);
+                ctx.stroke();
+                
+                // 添加UV标签
+                if (i < 10) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '30px Arial';
+                    ctx.fillText(`V: ${1-i/10}`, 10, y + 30);
+                }
+            }
+            
+            // 添加坐标说明
+            ctx.fillStyle = '#ff5722';
+            ctx.font = 'Bold 60px Arial';
+            ctx.fillText('纹理坐标系 (UV Coordinates)', 150, 512);
+            ctx.fillText('U水平方向  V垂直方向', 180, 600);
+            
+            // 创建纹理
+            const uvTexture = new THREE.CanvasTexture(textureCanvas);
+            
+            // 创建几个使用UV坐标的对象
+            const planeGeometry = new THREE.PlaneGeometry(4, 4);
+            const planeMaterial = new THREE.MeshBasicMaterial({ 
+                map: uvTexture,
+                side: THREE.DoubleSide
+            });
+            const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+            plane.position.z = -1;
+            plane.name = 'uvPlane';
+            scene.add(plane);
+            demoObjects.push(plane);
+            
+            // 创建一些3D物体来展示UV映射
+            const objects = [
+                { 
+                    geometry: new THREE.BoxGeometry(2, 2, 2),
+                    position: new THREE.Vector3(-3, 0, 2),
+                    name: 'uvCube'
+                },
+                { 
+                    geometry: new THREE.SphereGeometry(1, 32, 16),
+                    position: new THREE.Vector3(0, 0, 2),
+                    name: 'uvSphere'
+                },
+                { 
+                    geometry: new THREE.CylinderGeometry(0.7, 0.7, 2, 32),
+                    position: new THREE.Vector3(3, 0, 2),
+                    name: 'uvCylinder'
+                }
+            ];
+            
+            objects.forEach(obj => {
+                const material = new THREE.MeshBasicMaterial({
+                    map: uvTexture,
+                    side: THREE.DoubleSide
+                });
+                const mesh = new THREE.Mesh(obj.geometry, material);
+                mesh.position.copy(obj.position);
+                mesh.name = obj.name;
+                scene.add(mesh);
+                demoObjects.push(mesh);
+                
+                const label = createTextLabel(obj.name, 
+                    obj.position.clone().add(new THREE.Vector3(0, 2, 0)));
+                scene.add(label);
+                demoObjects.push(label);
+            });
+            
+            // 设置相机位置
+            camera.position.set(0, 3, 8);
+            camera.lookAt(0, 0, 1);
+            controls.target.set(0, 0, 1);
+            controls.update();
+            
+            // 绑定变换控制器到第一个对象
+            transformControls.attach(demoObjects.find(obj => obj.name === 'uvCube'));
+            transformControls.setMode('rotate');
+        }
+        
+        // 坐标变换演示
+        function setupTransformDemo() {
+            clearDemo();
+            currentMode = 'transform';
+            
+            // 显示网格和世界坐标轴
+            gridHelper.visible = true;
+            worldAxisHelper.visible = true;
+            
+            // 创建一个中心对象
+            const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const boxMaterial = new THREE.MeshStandardMaterial({ color: 0x03a9f4 });
+            const box = new THREE.Mesh(boxGeometry, boxMaterial);
+            box.position.set(0, 0.5, 0);
+            box.name = 'transformObject';
+            scene.add(box);
+            demoObjects.push(box);
+            
+            // 添加局部坐标轴
+            const boxAxes = new THREE.AxesHelper(1.5);
+            box.add(boxAxes);
+            
+            // 创建标签
+            const translateLabel = createTextLabel(
+                "平移 (Translation)",
+                new THREE.Vector3(-4, 3, 0)
+            );
+            scene.add(translateLabel);
+            demoObjects.push(translateLabel);
+            
+            const rotateLabel = createTextLabel(
+                "旋转 (Rotation)",
+                new THREE.Vector3(0, 3, 0)
+            );
+            scene.add(rotateLabel);
+            demoObjects.push(rotateLabel);
+            
+            const scaleLabel = createTextLabel(
+                "缩放 (Scale)",
+                new THREE.Vector3(4, 3, 0)
+            );
+            scene.add(scaleLabel);
+            demoObjects.push(scaleLabel);
+            
+            // 创建三种变换的示例对象
+            const translateBox = box.clone();
+            translateBox.material = boxMaterial.clone();
+            translateBox.material.color.set(0xf44336);
+            translateBox.position.set(-4, 0.5, 0);
+            translateBox.name = 'translateBox';
+            translateBox.add(new THREE.AxesHelper(1.5));
+            scene.add(translateBox);
+            demoObjects.push(translateBox);
+            
+            const rotateBox = box.clone();
+            rotateBox.material = boxMaterial.clone();
+            rotateBox.material.color.set(0x4caf50);
+            rotateBox.position.set(0, 0.5, 0);
+            rotateBox.name = 'rotateBox';
+            rotateBox.add(new THREE.AxesHelper(1.5));
+            scene.add(rotateBox);
+            demoObjects.push(rotateBox);
+            
+            const scaleBox = box.clone();
+            scaleBox.material = boxMaterial.clone();
+            scaleBox.material.color.set(0xffeb3b);
+            scaleBox.position.set(4, 0.5, 0);
+            scaleBox.name = 'scaleBox';
+            scaleBox.add(new THREE.AxesHelper(1.5));
+            scene.add(scaleBox);
+            demoObjects.push(scaleBox);
+            
+            // 创建一个对照组
+            const referenceGroup = new THREE.Group();
+            referenceGroup.position.set(0, 0, -4);
+            scene.add(referenceGroup);
+            demoObjects.push(referenceGroup);
+            
+            const referenceLabel = createTextLabel(
+                "参考用原始方块",
+                new THREE.Vector3(0, -1, -4)
+            );
+            scene.add(referenceLabel);
+            demoObjects.push(referenceLabel);
+            
+            const refBox1 = box.clone();
+            refBox1.material = boxMaterial.clone();
+            refBox1.material.color.set(0xf44336);
+            refBox1.position.set(-4, 0.5, 0);
+            refBox1.add(new THREE.AxesHelper(1.5));
+            referenceGroup.add(refBox1);
+            
+            const refBox2 = box.clone();
+            refBox2.material = boxMaterial.clone();
+            refBox2.material.color.set(0x4caf50);
+            refBox2.position.set(0, 0.5, 0);
+            refBox2.add(new THREE.AxesHelper(1.5));
+            referenceGroup.add(refBox2);
+            
+            const refBox3 = box.clone();
+            refBox3.material = boxMaterial.clone();
+            refBox3.material.color.set(0xffeb3b);
+            refBox3.position.set(4, 0.5, 0);
+            refBox3.add(new THREE.AxesHelper(1.5));
+            referenceGroup.add(refBox3);
+            
+            // 绑定变换控制器到对象
+            transformControls.attach(box);
+            
+            // 添加变换模式按钮
+            const transformModes = ['translate', 'rotate', 'scale'];
+            let currentMode = 0;
+            
+            // 设置按钮监听事件来切换变换模式
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'q') { // Q键切换变换模式
+                    currentMode = (currentMode + 1) % transformModes.length;
+                    transformControls.setMode(transformModes[currentMode]);
+                }
+            });
+            
+            // 存储动画数据
+            box.userData.animation = {
+                time: 0
+            };
+        }
+        
+        // 清除当前演示
+        function clearDemo() {
+            demoObjects.forEach(obj => {
+                scene.remove(obj);
+            });
+            demoObjects = [];
+            transformControls.detach();
+        }
+        
+        // 初始化默认为世界坐标系演示
+        setupWorldCoordinateDemo();
+        
+        // 添加按钮事件监听
+        document.getElementById('worldBtn').addEventListener('click', setupWorldCoordinateDemo);
+        document.getElementById('localBtn').addEventListener('click', setupLocalCoordinateDemo);
+        document.getElementById('childBtn').addEventListener('click', setupHierarchyCoordinateDemo);
+        document.getElementById('screenBtn').addEventListener('click', setupScreenCoordinateDemo);
+        document.getElementById('textureBtn').addEventListener('click', setupTextureCoordinateDemo);
+        document.getElementById('transformBtn').addEventListener('click', setupTransformDemo);
+        
+        // 鼠标位置
+        const mouse = {
+            x: 0,
+            y: 0,
+            worldPosition: new THREE.Vector3(),
+            screenPosition: new THREE.Vector2()
+        };
+        
+        // 射线用于鼠标拾取
+        const raycaster = new THREE.Raycaster();
+        
+        // 监听鼠标移动事件
+        window.addEventListener('mousemove', function(event) {
+            // 更新屏幕坐标
+            mouse.x = event.clientX;
+            mouse.y = event.clientY;
+            
+            // 计算标准化设备坐标 (-1 到 +1)
+            mouse.screenPosition.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.screenPosition.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            // 更新鼠标世界坐标
+            raycaster.setFromCamera(mouse.screenPosition, camera);
+            const intersects = raycaster.intersectObject(gridHelper);
+            
+            if (intersects.length > 0) {
+                mouse.worldPosition.copy(intersects[0].point);
+            }
+            
+            // 更新坐标信息
+            updateCoordinateInfo();
+        });
+        
+        // 更新坐标信息
+        function updateCoordinateInfo() {
+            document.getElementById('mouse-screen').innerHTML = `
+                <span>${mouse.x.toFixed(0)}, ${mouse.y.toFixed(0)}</span>`;
+            
+            document.getElementById('mouse-world').innerHTML = `
+                <span class="axis-x">X: ${mouse.worldPosition.x.toFixed(2)}</span>,
+                <span class="axis-y">Y: ${mouse.worldPosition.y.toFixed(2)}</span>,
+                <span class="axis-z">Z: ${mouse.worldPosition.z.toFixed(2)}</span>`;
+            
+            document.getElementById('camera-position').innerHTML = `
+                <span class="axis-x">X: ${camera.position.x.toFixed(2)}</span>,
+                <span class="axis-y">Y: ${camera.position.y.toFixed(2)}</span>,
+                <span class="axis-z">Z: ${camera.position.z.toFixed(2)}</span>`;
+            
+            // 更新其他对象坐标信息
+            let selectedObject = null;
+            
+            if (transformControls.object) {
+                selectedObject = transformControls.object;
+            } else if (demoObjects.length > 0) {
+                selectedObject = demoObjects.find(obj => obj.isMesh);
+            }
+            
+            if (selectedObject) {
+                // 世界坐标
+                const worldPosition = new THREE.Vector3();
+                selectedObject.getWorldPosition(worldPosition);
+                
+                document.getElementById('object-world').innerHTML = `
+                    <span class="axis-x">X: ${worldPosition.x.toFixed(2)}</span>,
+                    <span class="axis-y">Y: ${worldPosition.y.toFixed(2)}</span>,
+                    <span class="axis-z">Z: ${worldPosition.z.toFixed(2)}</span>`;
+                
+                // 局部坐标
+                document.getElementById('object-local').innerHTML = `
+                    <span class="axis-x">X: ${selectedObject.position.x.toFixed(2)}</span>,
+                    <span class="axis-y">Y: ${selectedObject.position.y.toFixed(2)}</span>,
+                    <span class="axis-z">Z: ${selectedObject.position.z.toFixed(2)}</span>`;
+            }
+        }
+        
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 更新控制器
+            controls.update();
+            
+            // 根据当前模式执行不同的动画
+            switch (currentMode) {
+                case 'world':
+                case 'local':
+                    // 简单的对象旋转
+                    break;
+                    
+                case 'child':
+                    // 太阳系层级动画
+                    scene.traverse(object => {
+                        if (object.userData.rotationSpeed) {
+                            object.rotation.y += object.userData.rotationSpeed;
+                        }
+                    });
+                    break;
+                    
+                case 'screen':
+                    // 更新对象到屏幕坐标的映射
+                    demoObjects.forEach(obj => {
+                        if (obj.isMesh && obj.name.startsWith('screenObject_')) {
+                            // 旋转对象
+                            obj.rotation.y += 0.01;
+                            obj.rotation.x += 0.005;
+                            
+                            // 更新标签位置
+                            const index = demoObjects.indexOf(obj);
+                            if (index >= 0 && index + 1 < demoObjects.length) {
+                                const label = demoObjects[index + 1];
+                                label.position.copy(obj.position).add(new THREE.Vector3(0, 0.2, 0));
+                                
+                                // 更新标签内容
+                                const screenPos = obj.position.clone().project(camera);
+                                const screenX = (screenPos.x * 0.5 + 0.5) * window.innerWidth;
+                                const screenY = (-screenPos.y * 0.5 + 0.5) * window.innerHeight;
+                                
+                                if (label.material && label.material.map) {
+                                    const canvas = document.createElement('canvas');
+                                    const context = canvas.getContext('2d');
+                                    canvas.width = 256;
+                                    canvas.height = 64;
+                                    
+                                    context.fillStyle = 'rgba(0,0,0,0.7)';
+                                    context.fillRect(0, 0, canvas.width, canvas.height);
+                                    
+                                    context.strokeStyle = `#${obj.userData.color.toString(16).padStart(6, '0')}`;
+                                    context.lineWidth = 2;
+                                    context.strokeRect(2, 2, canvas.width-4, canvas.height-4);
+                                    
+                                    context.font = 'Bold 16px Arial';
+                                    context.fillStyle = `#${obj.userData.color.toString(16).padStart(6, '0')}`;
+                                    context.fillText(`3D: (${obj.position.x.toFixed(1)}, ${obj.position.y.toFixed(1)}, ${obj.position.z.toFixed(1)})`, 10, 25);
+                                    context.fillText(`2D: (${screenX.toFixed(0)}, ${screenY.toFixed(0)})`, 10, 45);
+                                    
+                                    const texture = new THREE.CanvasTexture(canvas);
+                                    label.material.map.dispose();
+                                    label.material.map = texture;
+                                    label.material.needsUpdate = true;
+                                }
+                            }
+                        }
+                    });
+                    break;
+                    
+                case 'texture':
+                    // 旋转UV映射对象
+                    demoObjects.forEach(obj => {
+                        if (obj.isMesh && (obj.name === 'uvCube' || obj.name === 'uvSphere' || obj.name === 'uvCylinder')) {
+                            obj.rotation.y += 0.01;
+                        }
+                    });
+                    break;
+                    
+                case 'transform':
+                    // 执行变换动画
+                    const translateBox = scene.getObjectByName('translateBox');
+                    const rotateBox = scene.getObjectByName('rotateBox');
+                    const scaleBox = scene.getObjectByName('scaleBox');
+                    
+                    if (translateBox && rotateBox && scaleBox) {
+                        // 平移动画
+                        const time = Date.now() * 0.001;
+                        translateBox.position.x = -4 + Math.sin(time) * 2;
+                        translateBox.position.y = 0.5 + Math.cos(time) * 0.5;
+                        
+                        // 旋转动画
+                        rotateBox.rotation.x = time * 0.5;
+                        rotateBox.rotation.y = time;
+                        
+                        // 缩放动画
+                        const scale = 0.5 + Math.abs(Math.sin(time * 0.5)) * 1;
+                        scaleBox.scale.set(scale, scale, scale);
+                    }
+                    break;
+            }
+            
+            // 渲染场景
+            renderer.render(scene, camera);
+        }
+        
+        // 开始动画循环
+        animate();
+        
+        // 响应窗口变化
+        window.addEventListener('resize', function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>03_环境贴图与反射</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 15px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            border-radius: 5px;
+            max-width: 380px;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>Three.js 进阶 - 环境贴图与反射</h3>
+        <p>这个示例展示了：</p>
+        <ul>
+            <li>立方体环境贴图(CubeMap)</li>
+            <li>球形环境贴图应用</li>
+            <li>反射材质设置</li>
+            <li>反射率控制</li>
+            <li>动态环境映射</li>
+        </ul>
+    </div>
+
+    <div class="controls">
+        <label>反射强度: <input type="range" id="reflectivity" min="0" max="1" value="0.8" step="0.01"></label><br>
+        <label>金属度: <input type="range" id="metalness" min="0" max="1" value="1" step="0.01"></label><br>
+        <label>粗糙度: <input type="range" id="roughness" min="0" max="1" value="0.1" step="0.01"></label><br>
+        <button id="toggleEnvironment">切换环境</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 创建场景
+        const scene = new THREE.Scene();
+
+        // 创建相机
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 2, 8);
+
+        // 创建渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1;
+        document.body.appendChild(renderer.domElement);
+
+        // 添加轨道控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // 创建程序化立方体贴图
+        function createCubeTexture(colors) {
+            const size = 512;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            const cubeTextures = [];
+
+            colors.forEach((color, index) => {
+                // 清除画布
+                ctx.fillStyle = color;
+                ctx.fillRect(0, 0, size, size);
+
+                // 添加渐变效果
+                const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+                gradient.addColorStop(0, 'rgba(255,255,255,0.3)');
+                gradient.addColorStop(1, 'rgba(0,0,0,0.3)');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, size, size);
+
+                // 添加一些装饰图案
+                ctx.fillStyle = 'rgba(255,255,255,0.1)';
+                for (let i = 0; i < 20; i++) {
+                    const x = Math.random() * size;
+                    const y = Math.random() * size;
+                    const radius = Math.random() * 20 + 5;
+                    ctx.beginPath();
+                    ctx.arc(x, y, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                const texture = new THREE.CanvasTexture(canvas.cloneNode());
+                cubeTextures.push(texture);
+            });
+
+            return new THREE.CubeTexture(cubeTextures);
+        }
+
+        // 创建两套不同的环境贴图
+        const envMap1 = createCubeTexture([
+            '#87CEEB', // 天空蓝 - positive X
+            '#87CEEB', // 天空蓝 - negative X
+            '#E0F6FF', // 浅蓝 - positive Y
+            '#228B22', // 森林绿 - negative Y
+            '#87CEEB', // 天空蓝 - positive Z
+            '#87CEEB'  // 天空蓝 - negative Z
+        ]);
+
+        const envMap2 = createCubeTexture([
+            '#FF6B35', // 橙红 - positive X
+            '#FF6B35', // 橙红 - negative X
+            '#FFE66D', // 黄色 - positive Y
+            '#4ECDC4', // 青色 - negative Y
+            '#FF6B35', // 橙红 - positive Z
+            '#FF6B35'  // 橙红 - negative Z
+        ]);
+
+        let currentEnvMap = envMap1;
+        scene.background = currentEnvMap;
+
+        // 创建不同的反射材质
+        const materials = [
+            new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                metalness: 1,
+                roughness: 0.1,
+                envMap: currentEnvMap
+            }),
+            new THREE.MeshStandardMaterial({
+                color: 0xff6b6b,
+                metalness: 0.8,
+                roughness: 0.2,
+                envMap: currentEnvMap
+            }),
+            new THREE.MeshStandardMaterial({
+                color: 0x4ecdc4,
+                metalness: 0.6,
+                roughness: 0.4,
+                envMap: currentEnvMap
+            })
+        ];
+
+        // 创建几何体
+        const geometries = [
+            new THREE.SphereGeometry(1, 32, 32),
+            new THREE.BoxGeometry(1.5, 1.5, 1.5),
+            new THREE.TorusGeometry(1, 0.4, 16, 100)
+        ];
+
+        const meshes = [];
+        geometries.forEach((geometry, index) => {
+            const mesh = new THREE.Mesh(geometry, materials[index]);
+            mesh.position.x = (index - 1) * 3;
+            scene.add(mesh);
+            meshes.push(mesh);
+        });
+
+        // 添加地面反射
+        const groundGeometry = new THREE.PlaneGeometry(20, 20);
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0x808080,
+            metalness: 0.0,
+            roughness: 0.5,
+            envMap: currentEnvMap,
+            envMapIntensity: 0.3
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -2;
+        scene.add(ground);
+
+        // 添加背景物体来增强反射效果
+        const bgGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+        const bgMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        
+        for (let i = 0; i < 8; i++) {
+            const bgMesh = new THREE.Mesh(bgGeometry, bgMaterial);
+            const angle = (i / 8) * Math.PI * 2;
+            bgMesh.position.set(
+                Math.cos(angle) * 6,
+                Math.random() * 4 - 2,
+                Math.sin(angle) * 6
+            );
+            scene.add(bgMesh);
+        }
+
+        // 添加光照
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.2);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 5, 5);
+        scene.add(directionalLight);
+
+        // 控制器事件
+        document.getElementById('reflectivity').addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            materials.forEach(material => {
+                material.envMapIntensity = value;
+            });
+            groundMaterial.envMapIntensity = value * 0.3;
+        });
+
+        document.getElementById('metalness').addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            materials.forEach(material => {
+                material.metalness = value;
+            });
+        });
+
+        document.getElementById('roughness').addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            materials.forEach(material => {
+                material.roughness = value;
+            });
+        });
+
+        let usingEnv1 = true;
+        document.getElementById('toggleEnvironment').addEventListener('click', () => {
+            usingEnv1 = !usingEnv1;
+            currentEnvMap = usingEnv1 ? envMap1 : envMap2;
+            
+            scene.background = currentEnvMap;
+            materials.forEach(material => {
+                material.envMap = currentEnvMap;
+                material.needsUpdate = true;
+            });
+            groundMaterial.envMap = currentEnvMap;
+            groundMaterial.needsUpdate = true;
+        });
+
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            controls.update();
+            
+            // 旋转反射物体
+            meshes.forEach((mesh, index) => {
+                mesh.rotation.x += 0.01 * (index + 1);
+                mesh.rotation.y += 0.015 * (index + 1);
+            });
+            
+            // 让背景物体缓慢移动
+            scene.children.forEach(child => {
+                if (child.material && child.material.color && child.material.color.getHex() === 0xffff00) {
+                    child.position.y += Math.sin(Date.now() * 0.001 + child.position.x) * 0.01;
+                }
+            });
+            
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // 响应窗口大小变化
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

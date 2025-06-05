@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>04_光源类型</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+            background-color: #000;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            border-radius: 5px;
+            max-width: 350px;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            border-radius: 5px;
+        }
+        .controls button {
+            display: block;
+            margin: 5px 0;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>Three.js 基础 - 光源类型</h3>
+        <p>本示例展示了Three.js中不同类型的光源：</p>
+        <ul>
+            <li>环境光(AmbientLight) - 均匀照亮场景中的所有物体</li>
+            <li>方向光(DirectionalLight) - 平行光，如太阳光</li>
+            <li>点光源(PointLight) - 从一个点向各个方向发射的光</li>
+            <li>聚光灯(SpotLight) - 锥形光束</li>
+            <li>半球光(HemisphereLight) - 天空到地面的渐变光</li>
+            <li>矩形区域光(RectAreaLight) - 方形发光区域</li>
+        </ul>
+        <p>使用右侧按钮切换不同光源类型。</p>
+    </div>
+    
+    <div class="controls">
+        <button id="ambientBtn">环境光(AmbientLight)</button>
+        <button id="directionalBtn">方向光(DirectionalLight)</button>
+        <button id="pointBtn">点光源(PointLight)</button>
+        <button id="spotBtn">聚光灯(SpotLight)</button>
+        <button id="hemisphereBtn">半球光(HemisphereLight)</button>
+        <button id="rectAreaBtn">矩形区域光(RectAreaLight)</button>
+        <button id="resetBtn">重置场景</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        // 导入Three.js库
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { RectAreaLightHelper } from 'three/addons/helpers/RectAreaLightHelper.js';
+        import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
+
+        // 初始化RectAreaLight的Uniform库
+        RectAreaLightUniformsLib.init();
+        
+        // 创建场景
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111111);
+        
+        // 创建相机
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 2, 10);
+        
+        // 创建渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true; // 启用阴影
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 柔化阴影边缘
+        document.body.appendChild(renderer.domElement);
+        
+        // 添加控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        
+        // 创建地面
+        const planeGeometry = new THREE.PlaneGeometry(20, 20);
+        const planeMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x999999,
+            roughness: 0.8, 
+            metalness: 0.2,
+            side: THREE.DoubleSide
+        });
+        const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+        plane.rotation.x = -Math.PI / 2;
+        plane.receiveShadow = true;
+        scene.add(plane);
+        
+        // 创建不同的几何体
+        const boxGeometry = new THREE.BoxGeometry(2, 2, 2);
+        const sphereGeometry = new THREE.SphereGeometry(1, 32, 32);
+        const torusGeometry = new THREE.TorusGeometry(1, 0.4, 16, 100);
+        
+        const material = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 0.7,
+            metalness: 0.1
+        });
+        
+        const box = new THREE.Mesh(boxGeometry, material.clone());
+        box.position.set(-4, 1, 0);
+        box.castShadow = true;
+        scene.add(box);
+        
+        const sphere = new THREE.Mesh(sphereGeometry, material.clone());
+        sphere.position.set(0, 1, 0);
+        sphere.castShadow = true;
+        scene.add(sphere);
+        
+        const torus = new THREE.Mesh(torusGeometry, material.clone());
+        torus.position.set(4, 1, 0);
+        torus.castShadow = true;
+        scene.add(torus);
+        
+        // 存储当前灯光和辅助器
+        let currentLight = null;
+        let currentHelper = null;
+        
+        // 清除当前灯光
+        function clearCurrentLight() {
+            if (currentLight) {
+                scene.remove(currentLight);
+                currentLight = null;
+            }
+            
+            if (currentHelper) {
+                scene.remove(currentHelper);
+                currentHelper = null;
+            }
+        }
+        
+        // 创建环境光
+        function createAmbientLight() {
+            clearCurrentLight();
+            
+            currentLight = new THREE.AmbientLight(0xffffff, 1);
+            scene.add(currentLight);
+            
+            // 环境光没有辅助器
+            updateSceneInfo("环境光 (AmbientLight)：均匀照亮场景中所有物体，没有方向性，不产生阴影。");
+        }
+        
+        // 创建方向光
+        function createDirectionalLight() {
+            clearCurrentLight();
+            
+            currentLight = new THREE.DirectionalLight(0xffffff, 1);
+            currentLight.position.set(5, 5, 5);
+            currentLight.castShadow = true;
+            
+            // 设置阴影精确度
+            currentLight.shadow.mapSize.width = 1024;
+            currentLight.shadow.mapSize.height = 1024;
+            currentLight.shadow.camera.near = 0.5;
+            currentLight.shadow.camera.far = 50;
+            currentLight.shadow.camera.left = -10;
+            currentLight.shadow.camera.bottom = -10;
+            currentLight.shadow.camera.right = 10;
+            currentLight.shadow.camera.top = 10;
+            
+            scene.add(currentLight);
+            
+            // 创建辅助器
+            currentHelper = new THREE.DirectionalLightHelper(currentLight, 1);
+            scene.add(currentHelper);
+            
+            updateSceneInfo("方向光 (DirectionalLight)：类似太阳光，平行光线，从无限远处照射。可投射阴影。");
+        }
+        
+        // 创建点光源
+        function createPointLight() {
+            clearCurrentLight();
+            
+            currentLight = new THREE.PointLight(0xff0000, 1, 20);
+            currentLight.position.set(0, 5, 0);
+            currentLight.castShadow = true;
+            scene.add(currentLight);
+            
+            // 创建辅助器
+            currentHelper = new THREE.PointLightHelper(currentLight, 1);
+            scene.add(currentHelper);
+            
+            updateSceneInfo("点光源 (PointLight)：从一个点向各个方向发射的光源。像灯泡一样，光照强度随距离衰减。");
+        }
+        
+        // 创建聚光灯
+        function createSpotLight() {
+            clearCurrentLight();
+            
+            currentLight = new THREE.SpotLight(0x00ff00, 1);
+            currentLight.position.set(0, 8, 0);
+            currentLight.target.position.set(0, 0, 0);
+            currentLight.angle = Math.PI / 6;
+            currentLight.penumbra = 0.3;
+            currentLight.decay = 2;
+            currentLight.distance = 50;
+            currentLight.castShadow = true;
+            scene.add(currentLight);
+            scene.add(currentLight.target);
+            
+            // 创建辅助器
+            currentHelper = new THREE.SpotLightHelper(currentLight);
+            scene.add(currentHelper);
+            
+            updateSceneInfo("聚光灯 (SpotLight)：从一个点发射的锥形光束，类似手电筒。有角度、衰减等属性。");
+        }
+        
+        // 创建半球光
+        function createHemisphereLight() {
+            clearCurrentLight();
+            
+            currentLight = new THREE.HemisphereLight(0x0000ff, 0xff5500, 1);
+            scene.add(currentLight);
+            
+            // 创建辅助器
+            currentHelper = new THREE.HemisphereLightHelper(currentLight, 1);
+            scene.add(currentHelper);
+            
+            updateSceneInfo("半球光 (HemisphereLight)：模拟天空到地面的渐变光照，上下两个颜色。不投射阴影。");
+        }
+        
+        // 创建矩形区域光
+        function createRectAreaLight() {
+            clearCurrentLight();
+            
+            currentLight = new THREE.RectAreaLight(0xffffff, 3, 5, 5);
+            currentLight.position.set(0, 5, 0);
+            currentLight.lookAt(0, 0, 0);
+            scene.add(currentLight);
+            
+            // 创建辅助器
+            currentHelper = new RectAreaLightHelper(currentLight);
+            scene.add(currentHelper);
+            
+            updateSceneInfo("矩形区域光 (RectAreaLight)：矩形发光区域，类似摄影棚的灯光或明亮的窗户。");
+        }
+        
+        // 更新场景信息
+        function updateSceneInfo(text) {
+            console.log(text);
+        }
+        
+        // 添加按钮事件监听
+        document.getElementById('ambientBtn').addEventListener('click', createAmbientLight);
+        document.getElementById('directionalBtn').addEventListener('click', createDirectionalLight);
+        document.getElementById('pointBtn').addEventListener('click', createPointLight);
+        document.getElementById('spotBtn').addEventListener('click', createSpotLight);
+        document.getElementById('hemisphereBtn').addEventListener('click', createHemisphereLight);
+        document.getElementById('rectAreaBtn').addEventListener('click', createRectAreaLight);
+        document.getElementById('resetBtn').addEventListener('click', function() {
+            clearCurrentLight();
+            
+            // 添加默认弱环境光
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+            scene.add(ambientLight);
+            
+            updateSceneInfo("场景已重置，仅保留弱环境光。请选择光源类型。");
+        });
+        
+        // 设置默认光源 - 方向光
+        createDirectionalLight();
+        
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 更新控制器
+            controls.update();
+            
+            // 旋转物体
+            box.rotation.y += 0.01;
+            torus.rotation.y += 0.01;
+            
+            // 更新聚光灯辅助器（如果存在）
+            if (currentHelper instanceof THREE.SpotLightHelper) {
+                currentHelper.update();
+            }
+            
+            // 移动点光源（如果选择）
+            if (currentLight instanceof THREE.PointLight) {
+                const time = Date.now() * 0.001;
+                currentLight.position.x = Math.sin(time) * 4;
+                currentLight.position.z = Math.cos(time) * 4;
+                currentLight.position.y = Math.abs(Math.sin(time * 0.5)) * 5 + 1;
+                
+                if (currentHelper) currentHelper.update();
+            }
+            
+            // 渲染场景
+            renderer.render(scene, camera);
+        }
+        
+        // 开始动画循环
+        animate();
+        
+        // 响应窗口变化
+        window.addEventListener('resize', function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

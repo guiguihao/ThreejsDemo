@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>12_LOD优化技术</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 350px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            width: 280px;
+            font-size: 12px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 2px;
+            font-size: 11px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.active {
+            background: #ff6b6b;
+        }
+        .stats {
+            background: rgba(255,255,255,0.1);
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 11px;
+        }
+        .value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+        .lod-info {
+            background: rgba(255,255,0,0.1);
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 11px;
+            border: 1px solid rgba(255,255,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>LOD (细节层次) 优化技术</h3>
+        <p>本示例展示了Three.js的LOD优化系统：</p>
+        <ul>
+            <li><strong>LOD对象</strong> - 距离自适应细节</li>
+            <li><strong>多层次模型</strong> - 高/中/低精度版本</li>
+            <li><strong>自动切换</strong> - 基于相机距离</li>
+            <li><strong>性能监控</strong> - 实时顶点计数</li>
+            <li><strong>自定义距离</strong> - 可调节切换阈值</li>
+        </ul>
+        <p><strong>优化原理：</strong></p>
+        <p>根据对象与相机的距离自动选择合适的模型精度，近距离显示高精度模型，远距离显示低精度模型。</p>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>对象数量: <span class="value" id="countValue">20</span></label>
+            <input type="range" id="objectCount" min="5" max="50" value="20" step="5">
+        </div>
+
+        <div class="control-group">
+            <label>分布范围: <span class="value" id="rangeValue">50</span></label>
+            <input type="range" id="spreadRange" min="20" max="100" value="50" step="10">
+        </div>
+
+        <div class="control-group">
+            <label>中距离阈值: <span class="value" id="midValue">15</span></label>
+            <input type="range" id="midDistance" min="5" max="30" value="15" step="1">
+        </div>
+
+        <div class="control-group">
+            <label>远距离阈值: <span class="value" id="farValue">30</span></label>
+            <input type="range" id="farDistance" min="20" max="60" value="30" step="2">
+        </div>
+
+        <div class="control-group">
+            <label>LOD模式</label>
+            <button id="lodAuto" class="active">自动LOD</button>
+            <button id="lodForceHigh">强制高精度</button>
+            <button id="lodForceLow">强制低精度</button>
+        </div>
+
+        <div class="control-group">
+            <label>显示模式</label>
+            <button id="showNormal" class="active">正常</button>
+            <button id="showWireframe">线框</button>
+            <button id="showLODColors">LOD颜色</button>
+        </div>
+
+        <div class="control-group">
+            <button id="regenerate">重新生成</button>
+            <button id="moveCameraFar">相机拉远</button>
+            <button id="moveCameraNear">相机拉近</button>
+            <button id="autoCamera">自动巡航</button>
+        </div>
+
+        <div class="stats" id="stats">
+            总对象：<span class="value">20</span><br>
+            可见顶点：<span class="value">0</span><br>
+            高精度：<span class="value">0</span><br>
+            中精度：<span class="value">0</span><br>
+            低精度：<span class="value">0</span>
+        </div>
+
+        <div class="lod-info" id="lodInfo">
+            <strong>当前LOD状态：</strong><br>
+            距离：<span class="value">0</span><br>
+            级别：<span class="value">高精度</span>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 基本设置
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x001122);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // 控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxDistance = 200;
+
+        // 变量
+        let lodObjects = [];
+        let objectCount = 20;
+        let spreadRange = 50;
+        let midDistance = 15;
+        let farDistance = 30;
+        let lodMode = 'auto'; // auto, forceHigh, forceLow
+        let displayMode = 'normal'; // normal, wireframe, lodColors
+        let autoCameraMode = false;
+
+        // LOD材质 - 不同颜色表示不同LOD级别
+        const lodMaterials = {
+            high: new THREE.MeshStandardMaterial({ color: 0x00ff00 }), // 绿色 - 高精度
+            mid: new THREE.MeshStandardMaterial({ color: 0xffff00 }),  // 黄色 - 中精度
+            low: new THREE.MeshStandardMaterial({ color: 0xff0000 })   // 红色 - 低精度
+        };
+
+        // 普通材质
+        const normalMaterials = [
+            new THREE.MeshStandardMaterial({ color: 0x8888ff }),
+            new THREE.MeshStandardMaterial({ color: 0xff8888 }),
+            new THREE.MeshStandardMaterial({ color: 0x88ff88 }),
+            new THREE.MeshStandardMaterial({ color: 0xffaa88 }),
+            new THREE.MeshStandardMaterial({ color: 0xaa88ff }),
+            new THREE.MeshStandardMaterial({ color: 0x88aaff })
+        ];
+
+        // 初始化场景
+        function initScene() {
+            // 添加光照
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(20, 20, 10);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+
+            // 添加地面
+            const groundGeometry = new THREE.PlaneGeometry(200, 200);
+            const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // 创建LOD对象
+            createLODObjects();
+
+            // 设置相机位置
+            camera.position.set(0, 15, 40);
+            controls.target.set(0, 0, 0);
+        }
+
+        function createLODGeometries() {
+            // 高精度几何体 (更多细分)
+            const highGeometry = new THREE.SphereGeometry(2, 32, 32);
+            
+            // 中精度几何体
+            const midGeometry = new THREE.SphereGeometry(2, 16, 16);
+            
+            // 低精度几何体
+            const lowGeometry = new THREE.SphereGeometry(2, 8, 8);
+
+            return { highGeometry, midGeometry, lowGeometry };
+        }
+
+        function createLODObjects() {
+            // 清除旧对象
+            lodObjects.forEach(lodObj => {
+                scene.remove(lodObj);
+                // 清理几何体和材质
+                lodObj.children.forEach(child => {
+                    if (child.geometry) child.geometry.dispose();
+                });
+            });
+            lodObjects.length = 0;
+
+            const { highGeometry, midGeometry, lowGeometry } = createLODGeometries();
+
+            for (let i = 0; i < objectCount; i++) {
+                // 创建LOD对象
+                const lod = new THREE.LOD();
+
+                // 创建不同精度的网格
+                const materialIndex = i % normalMaterials.length;
+                const baseMaterial = normalMaterials[materialIndex];
+
+                // 高精度版本
+                const highMesh = new THREE.Mesh(
+                    highGeometry, 
+                    displayMode === 'lodColors' ? lodMaterials.high.clone() : baseMaterial.clone()
+                );
+                highMesh.castShadow = true;
+                lod.addLevel(highMesh, 0); // 距离0开始显示高精度
+
+                // 中精度版本
+                const midMesh = new THREE.Mesh(
+                    midGeometry, 
+                    displayMode === 'lodColors' ? lodMaterials.mid.clone() : baseMaterial.clone()
+                );
+                midMesh.castShadow = true;
+                lod.addLevel(midMesh, midDistance); // 中距离开始显示中精度
+
+                // 低精度版本
+                const lowMesh = new THREE.Mesh(
+                    lowGeometry, 
+                    displayMode === 'lodColors' ? lodMaterials.low.clone() : baseMaterial.clone()
+                );
+                lowMesh.castShadow = true;
+                lod.addLevel(lowMesh, farDistance); // 远距离开始显示低精度
+
+                // 随机位置
+                lod.position.set(
+                    (Math.random() - 0.5) * spreadRange,
+                    2 + Math.random() * 8,
+                    (Math.random() - 0.5) * spreadRange
+                );
+
+                // 添加到场景
+                scene.add(lod);
+                lodObjects.push(lod);
+
+                // 存储用户数据
+                lod.userData = {
+                    id: i,
+                    currentLevel: 0,
+                    distance: 0
+                };
+            }
+
+            updateDisplayMode();
+        }
+
+        function updateLODDistances() {
+            lodObjects.forEach(lod => {
+                // 更新LOD距离阈值
+                lod.levels[1].distance = midDistance;
+                lod.levels[2].distance = farDistance;
+            });
+        }
+
+        function updateDisplayMode() {
+            lodObjects.forEach(lod => {
+                lod.children.forEach((mesh, levelIndex) => {
+                    if (displayMode === 'wireframe') {
+                        mesh.material.wireframe = true;
+                    } else {
+                        mesh.material.wireframe = false;
+                    }
+
+                    if (displayMode === 'lodColors') {
+                        if (levelIndex === 0) mesh.material.color.setHex(0x00ff00);      // 高精度 - 绿色
+                        else if (levelIndex === 1) mesh.material.color.setHex(0xffff00); // 中精度 - 黄色
+                        else mesh.material.color.setHex(0xff0000);                       // 低精度 - 红色
+                    } else {
+                        // 恢复原始颜色
+                        const materialIndex = lod.userData.id % normalMaterials.length;
+                        mesh.material.color.copy(normalMaterials[materialIndex].color);
+                    }
+                });
+            });
+        }
+
+        function forceLODLevel(level) {
+            lodObjects.forEach(lod => {
+                lod.children.forEach((mesh, index) => {
+                    mesh.visible = (index === level);
+                });
+            });
+        }
+
+        function updateStats() {
+            let totalVertices = 0;
+            let highCount = 0, midCount = 0, lowCount = 0;
+
+            lodObjects.forEach(lod => {
+                const distance = camera.position.distanceTo(lod.position);
+                lod.userData.distance = distance;
+
+                // 确定当前LOD级别
+                let currentLevel = 0;
+                if (distance >= farDistance) currentLevel = 2;
+                else if (distance >= midDistance) currentLevel = 1;
+                
+                lod.userData.currentLevel = currentLevel;
+
+                // 计算顶点数
+                const activeChild = lod.children[currentLevel];
+                if (activeChild && activeChild.visible) {
+                    totalVertices += activeChild.geometry.attributes.position.count;
+                    
+                    if (currentLevel === 0) highCount++;
+                    else if (currentLevel === 1) midCount++;
+                    else lowCount++;
+                }
+            });
+
+            const stats = document.getElementById('stats');
+            stats.innerHTML = `
+                总对象：<span class="value">${lodObjects.length}</span><br>
+                可见顶点：<span class="value">${totalVertices.toLocaleString()}</span><br>
+                高精度：<span class="value">${highCount}</span><br>
+                中精度：<span class="value">${midCount}</span><br>
+                低精度：<span class="value">${lowCount}</span>
+            `;
+
+            // 更新LOD信息 (显示最近对象的信息)
+            if (lodObjects.length > 0) {
+                const nearestLOD = lodObjects.reduce((nearest, lod) => 
+                    lod.userData.distance < nearest.userData.distance ? lod : nearest
+                );
+                
+                const levelNames = ['高精度', '中精度', '低精度'];
+                const lodInfo = document.getElementById('lodInfo');
+                lodInfo.innerHTML = `
+                    <strong>最近对象LOD状态：</strong><br>
+                    距离：<span class="value">${nearestLOD.userData.distance.toFixed(1)}</span><br>
+                    级别：<span class="value">${levelNames[nearestLOD.userData.currentLevel]}</span>
+                `;
+            }
+        }
+
+        // 自动相机巡航
+        function updateAutoCamera(time) {
+            if (autoCameraMode) {
+                const radius = 30 + Math.sin(time * 0.0003) * 20;
+                const height = 15 + Math.sin(time * 0.0005) * 10;
+                camera.position.x = Math.cos(time * 0.0002) * radius;
+                camera.position.z = Math.sin(time * 0.0002) * radius;
+                camera.position.y = height;
+                controls.target.set(0, 0, 0);
+            }
+        }
+
+        // 事件监听
+        document.getElementById('objectCount').addEventListener('input', (e) => {
+            objectCount = parseInt(e.target.value);
+            document.getElementById('countValue').textContent = objectCount;
+            createLODObjects();
+        });
+
+        document.getElementById('spreadRange').addEventListener('input', (e) => {
+            spreadRange = parseInt(e.target.value);
+            document.getElementById('rangeValue').textContent = spreadRange;
+            createLODObjects();
+        });
+
+        document.getElementById('midDistance').addEventListener('input', (e) => {
+            midDistance = parseInt(e.target.value);
+            document.getElementById('midValue').textContent = midDistance;
+            updateLODDistances();
+        });
+
+        document.getElementById('farDistance').addEventListener('input', (e) => {
+            farDistance = parseInt(e.target.value);
+            document.getElementById('farValue').textContent = farDistance;
+            updateLODDistances();
+        });
+
+        // LOD模式控制
+        document.getElementById('lodAuto').addEventListener('click', () => {
+            lodMode = 'auto';
+            document.querySelectorAll('[id^="lod"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('lodAuto').classList.add('active');
+            // 恢复自动LOD
+            lodObjects.forEach(lod => {
+                lod.children.forEach(child => child.visible = true);
+            });
+        });
+
+        document.getElementById('lodForceHigh').addEventListener('click', () => {
+            lodMode = 'forceHigh';
+            document.querySelectorAll('[id^="lod"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('lodForceHigh').classList.add('active');
+            forceLODLevel(0);
+        });
+
+        document.getElementById('lodForceLow').addEventListener('click', () => {
+            lodMode = 'forceLow';
+            document.querySelectorAll('[id^="lod"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('lodForceLow').classList.add('active');
+            forceLODLevel(2);
+        });
+
+        // 显示模式控制
+        document.getElementById('showNormal').addEventListener('click', () => {
+            displayMode = 'normal';
+            document.querySelectorAll('[id^="show"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('showNormal').classList.add('active');
+            updateDisplayMode();
+        });
+
+        document.getElementById('showWireframe').addEventListener('click', () => {
+            displayMode = 'wireframe';
+            document.querySelectorAll('[id^="show"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('showWireframe').classList.add('active');
+            updateDisplayMode();
+        });
+
+        document.getElementById('showLODColors').addEventListener('click', () => {
+            displayMode = 'lodColors';
+            document.querySelectorAll('[id^="show"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('showLODColors').classList.add('active');
+            updateDisplayMode();
+        });
+
+        // 其他控制
+        document.getElementById('regenerate').addEventListener('click', createLODObjects);
+
+        document.getElementById('moveCameraFar').addEventListener('click', () => {
+            autoCameraMode = false;
+            camera.position.set(0, 30, 80);
+            controls.update();
+        });
+
+        document.getElementById('moveCameraNear').addEventListener('click', () => {
+            autoCameraMode = false;
+            camera.position.set(0, 5, 15);
+            controls.update();
+        });
+
+        document.getElementById('autoCamera').addEventListener('click', () => {
+            autoCameraMode = !autoCameraMode;
+            const btn = document.getElementById('autoCamera');
+            btn.textContent = autoCameraMode ? '停止巡航' : '自动巡航';
+            btn.classList.toggle('active', autoCameraMode);
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 动画循环
+        function animate(time) {
+            requestAnimationFrame(animate);
+            
+            // 更新自动相机
+            updateAutoCamera(time);
+            
+            // 旋转LOD对象
+            lodObjects.forEach((lod, index) => {
+                lod.rotation.y += 0.01 * (index % 2 === 0 ? 1 : -1);
+            });
+            
+            // 更新LOD (仅在自动模式下)
+            if (lodMode === 'auto') {
+                lodObjects.forEach(lod => {
+                    lod.update(camera);
+                });
+            }
+            
+            updateStats();
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // 初始化
+        initScene();
+        animate();
+    </script>
+</body>
+</html>

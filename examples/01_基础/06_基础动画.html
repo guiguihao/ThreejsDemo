@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>06_基础动画</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            border-radius: 5px;
+            max-width: 350px;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            border-radius: 5px;
+        }
+        button {
+            margin: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>Three.js 基础 - 动画</h3>
+        <p>本示例展示了Three.js中创建动画的不同方法：</p>
+        <ul>
+            <li>基本动画循环 - requestAnimationFrame</li>
+            <li>使用Clock对象控制动画</li>
+            <li>插值(Lerp)动画 - 平滑过渡</li>
+            <li>圆周运动与数学函数</li>
+            <li>链式动画 - 一个接一个</li>
+        </ul>
+        <p>使用右侧按钮切换不同的动画类型。</p>
+    </div>
+    
+    <div class="controls">
+        <button id="basicAnimation">基本动画</button>
+        <button id="clockAnimation">时钟动画</button>
+        <button id="lerpAnimation">插值动画</button>
+        <button id="circularAnimation">圆周运动</button>
+        <button id="chainAnimation">链式动画</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        // 导入Three.js库
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        
+        // 创建场景
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x333333);
+        
+        // 创建相机
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 3, 10);
+        
+        // 创建渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+        
+        // 添加轨道控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        
+        // 添加灯光
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 5, 5);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+        
+        // 创建地面
+        const planeGeometry = new THREE.PlaneGeometry(20, 20);
+        const planeMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x999999,
+            side: THREE.DoubleSide
+        });
+        const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+        plane.rotation.x = -Math.PI / 2;
+        plane.position.y = -2;
+        plane.receiveShadow = true;
+        scene.add(plane);
+        
+        // 网格系统
+        const gridHelper = new THREE.GridHelper(20, 20);
+        gridHelper.position.y = -1.99;
+        scene.add(gridHelper);
+        
+        // 创建时钟对象
+        const clock = new THREE.Clock();
+        
+        // 创建动画对象
+        let animationObjects = [];
+        let currentAnimationId = null;
+        
+        // 清除所有动画对象
+        function clearAnimations() {
+            // 移除之前的动画对象
+            animationObjects.forEach(obj => {
+                scene.remove(obj);
+            });
+            animationObjects = [];
+        }
+        
+        // 1. 基本动画 - 简单旋转
+        function createBasicAnimation() {
+            clearAnimations();
+            
+            // 创建一个立方体
+            const boxGeometry = new THREE.BoxGeometry(2, 2, 2);
+            const boxMaterial = new THREE.MeshStandardMaterial({ color: 0x00bcd4 });
+            const cube = new THREE.Mesh(boxGeometry, boxMaterial);
+            cube.castShadow = true;
+            scene.add(cube);
+            animationObjects.push(cube);
+            
+            // 添加标签
+            createLabel("基本动画 - 旋转", new THREE.Vector3(0, 4, 0));
+            
+            // 动画函数
+            function animateBasic() {
+                if (currentAnimationId !== 'basic') return;
+                
+                // 简单旋转动画
+                cube.rotation.x += 0.01;
+                cube.rotation.y += 0.02;
+            }
+            
+            // 设置当前动画ID
+            currentAnimationId = 'basic';
+            
+            // 返回动画函数
+            return animateBasic;
+        }
+        
+        // 2. 时钟动画 - 使用Clock对象控制动画
+        function createClockAnimation() {
+            clearAnimations();
+            
+            // 重置时钟
+            clock.start();
+            
+            // 创建几个几何体
+            const geometry = new THREE.SphereGeometry(0.5, 32, 32);
+            
+            const sphere1 = new THREE.Mesh(
+                geometry,
+                new THREE.MeshStandardMaterial({ color: 0xff5252 })
+            );
+            sphere1.castShadow = true;
+            scene.add(sphere1);
+            animationObjects.push(sphere1);
+            
+            const sphere2 = new THREE.Mesh(
+                geometry,
+                new THREE.MeshStandardMaterial({ color: 0x4caf50 })
+            );
+            sphere2.castShadow = true;
+            scene.add(sphere2);
+            animationObjects.push(sphere2);
+            
+            const sphere3 = new THREE.Mesh(
+                geometry,
+                new THREE.MeshStandardMaterial({ color: 0x2196f3 })
+            );
+            sphere3.castShadow = true;
+            scene.add(sphere3);
+            animationObjects.push(sphere3);
+            
+            // 添加标签
+            createLabel("时钟动画 - 不同速度", new THREE.Vector3(0, 4, 0));
+            
+            // 动画函数
+            function animateClock() {
+                if (currentAnimationId !== 'clock') return;
+                
+                const elapsedTime = clock.getElapsedTime();
+                
+                // 每个球以不同速度移动
+                sphere1.position.x = Math.cos(elapsedTime * 0.5) * 3;
+                sphere1.position.z = Math.sin(elapsedTime * 0.5) * 3;
+                
+                sphere2.position.x = Math.cos(elapsedTime * 1.0) * 2;
+                sphere2.position.z = Math.sin(elapsedTime * 1.0) * 2;
+                
+                sphere3.position.x = Math.cos(elapsedTime * 1.5) * 1;
+                sphere3.position.z = Math.sin(elapsedTime * 1.5) * 1;
+            }
+            
+            // 设置当前动画ID
+            currentAnimationId = 'clock';
+            
+            // 返回动画函数
+            return animateClock;
+        }
+        
+        // 3. 插值(Lerp)动画 - 平滑过渡
+        function createLerpAnimation() {
+            clearAnimations();
+            
+            // 创建几个立方体
+            const boxGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const boxMaterial = new THREE.MeshStandardMaterial({ color: 0xffeb3b });
+            
+            const totalBoxes = 10;
+            const targetPositions = [];
+            
+            for (let i = 0; i < totalBoxes; i++) {
+                const cube = new THREE.Mesh(boxGeometry, boxMaterial.clone());
+                cube.position.x = (i - totalBoxes / 2) * 1.5;
+                cube.castShadow = true;
+                scene.add(cube);
+                animationObjects.push(cube);
+                
+                // 存储目标位置
+                targetPositions.push({
+                    y: 0
+                });
+            }
+            
+            // 添加标签
+            createLabel("插值(Lerp)动画 - 波浪效果", new THREE.Vector3(0, 4, 0));
+            
+            // 动画函数
+            function animateLerp() {
+                if (currentAnimationId !== 'lerp') return;
+                
+                const elapsedTime = clock.getElapsedTime();
+                
+                // 更新每个立方体的目标位置
+                for (let i = 0; i < animationObjects.length; i++) {
+                    targetPositions[i].y = Math.sin(elapsedTime * 3 + i * 0.5) * 2;
+                    
+                    // 使用线性插值(Lerp)平滑过渡到目标位置
+                    animationObjects[i].position.y = lerp(
+                        animationObjects[i].position.y, 
+                        targetPositions[i].y, 
+                        0.05
+                    );
+                }
+            }
+            
+            // 线性插值函数
+            function lerp(start, end, t) {
+                return start * (1 - t) + end * t;
+            }
+            
+            // 设置当前动画ID
+            currentAnimationId = 'lerp';
+            
+            // 返回动画函数
+            return animateLerp;
+        }
+        
+        // 4. 圆周运动动画
+        function createCircularAnimation() {
+            clearAnimations();
+            
+            // 创建中心球体
+            const centerSphere = new THREE.Mesh(
+                new THREE.SphereGeometry(1, 32, 32),
+                new THREE.MeshStandardMaterial({ color: 0xff9800 })
+            );
+            centerSphere.castShadow = true;
+            scene.add(centerSphere);
+            animationObjects.push(centerSphere);
+            
+            // 创建围绕中心的小球
+            const orbitingBodies = [];
+            const orbitCount = 3;
+            const orbitRadius = [2, 3, 4]; // 不同的轨道半径
+            const orbitSpeed = [1, 0.7, 0.5]; // 不同的轨道速度
+            
+            for (let i = 0; i < orbitCount; i++) {
+                const orbit = new THREE.Object3D();
+                scene.add(orbit);
+                animationObjects.push(orbit);
+                
+                // 创建轨道线
+                const orbitLine = new THREE.LineLoop(
+                    new THREE.CircleGeometry(orbitRadius[i], 64).setFromPoints(
+                        new THREE.CircleGeometry(orbitRadius[i], 64).vertices || 
+                        Array.from(new THREE.CircleGeometry(orbitRadius[i], 64).attributes.position.array)
+                            .reduce((acc, _, i, arr) => {
+                                if (i % 3 === 0) {
+                                    acc.push(new THREE.Vector3(arr[i], 0, arr[i+2]));
+                                }
+                                return acc;
+                            }, [])
+                    ),
+                    new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.3, transparent: true })
+                );
+                orbitLine.rotation.x = Math.PI / 2;
+                scene.add(orbitLine);
+                animationObjects.push(orbitLine);
+                
+                // 创建小球
+                const smallSphere = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.3, 16, 16),
+                    new THREE.MeshStandardMaterial({ color: 0x3f51b5 })
+                );
+                smallSphere.position.x = orbitRadius[i];
+                smallSphere.castShadow = true;
+                orbit.add(smallSphere);
+                orbitingBodies.push(orbit);
+                
+                // 创建小球轨道上的拖尾效果
+                const trailMaterial = new THREE.MeshBasicMaterial({ 
+                    color: 0x3f51b5, 
+                    transparent: true,
+                    opacity: 0.4
+                });
+                
+                for (let j = 0; j < 20; j++) {
+                    const trailSphere = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.1, 8, 8),
+                        trailMaterial.clone()
+                    );
+                    trailSphere.material.opacity = 0.4 - (j / 20) * 0.4;
+                    smallSphere.add(trailSphere);
+                    trailSphere.userData = { 
+                        offset: j * 0.05,
+                        radius: orbitRadius[i]
+                    };
+                }
+            }
+            
+            // 添加标签
+            createLabel("圆周运动 - 行星系统", new THREE.Vector3(0, 4, 0));
+            
+            // 动画函数
+            function animateCircular() {
+                if (currentAnimationId !== 'circular') return;
+                
+                const elapsedTime = clock.getElapsedTime();
+                
+                // 旋转中心球体
+                centerSphere.rotation.y = elapsedTime * 0.2;
+                
+                // 旋转每个轨道
+                for (let i = 0; i < orbitingBodies.length; i++) {
+                    orbitingBodies[i].rotation.y = elapsedTime * orbitSpeed[i];
+                }
+                
+                // 让整个系统有点起伏
+                const systemY = Math.sin(elapsedTime * 0.3) * 0.5;
+                animationObjects.forEach(obj => {
+                    if (obj !== plane && obj !== gridHelper) {
+                        obj.position.y = systemY;
+                    }
+                });
+            }
+            
+            // 设置当前动画ID
+            currentAnimationId = 'circular';
+            
+            // 返回动画函数
+            return animateCircular;
+        }
+        
+        // 5. 链式动画 - 一个接一个
+        function createChainAnimation() {
+            clearAnimations();
+            
+            // 创建一个链条
+            const chainLength = 10;
+            const segments = [];
+            
+            // 创建链条段
+            for (let i = 0; i < chainLength; i++) {
+                const box = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.5, 0.5, 0.5),
+                    new THREE.MeshStandardMaterial({ 
+                        color: new THREE.Color().setHSL(i / chainLength, 1, 0.5) 
+                    })
+                );
+                box.castShadow = true;
+                box.position.x = (i - chainLength / 2) * 0.7;
+                scene.add(box);
+                segments.push(box);
+                animationObjects.push(box);
+            }
+            
+            // 添加标签
+            createLabel("链式动画 - 延迟跟随", new THREE.Vector3(0, 4, 0));
+            
+            // 目标位置和延迟
+            let targetX = 0;
+            let targetY = 0;
+            
+            // 每5秒切换方向
+            setInterval(() => {
+                targetX = (Math.random() - 0.5) * 5;
+                targetY = Math.random() * 3;
+            }, 5000);
+            
+            // 动画函数
+            function animateChain() {
+                if (currentAnimationId !== 'chain') return;
+                
+                // 头部段落跟随目标位置，使用插值平滑运动
+                segments[0].position.x = lerp(segments[0].position.x, targetX, 0.02);
+                segments[0].position.y = lerp(segments[0].position.y, targetY, 0.02);
+                
+                // 其余的段落跟随前一个，形成链式效应
+                for (let i = 1; i < segments.length; i++) {
+                    segments[i].position.x = lerp(segments[i].position.x, segments[i-1].position.x, 0.1);
+                    segments[i].position.y = lerp(segments[i].position.y, segments[i-1].position.y, 0.1);
+                    
+                    // 计算朝向前一个段的方向
+                    const direction = new THREE.Vector3()
+                        .subVectors(segments[i-1].position, segments[i].position)
+                        .normalize();
+                    
+                    // 应用旋转（简单版）
+                    if (direction.length() > 0.01) {
+                        const angle = Math.atan2(direction.y, direction.x);
+                        segments[i].rotation.z = angle;
+                    }
+                }
+                
+                // 线性插值辅助函数
+                function lerp(start, end, t) {
+                    return start * (1 - t) + end * t;
+                }
+            }
+            
+            // 设置当前动画ID
+            currentAnimationId = 'chain';
+            
+            // 返回动画函数
+            return animateChain;
+        }
+        
+        // 创建标签辅助函数
+        function createLabel(text, position) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = 512;
+            canvas.height = 128;
+            
+            // 绘制背景
+            context.fillStyle = 'rgba(0,0,0,0.7)';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制文本
+            context.font = 'Bold 36px Arial';
+            context.fillStyle = 'white';
+            context.fillText(text, 20, 70);
+            
+            // 创建精灵
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({ map: texture });
+            const sprite = new THREE.Sprite(material);
+            
+            // 设置位置与缩放
+            sprite.position.copy(position);
+            sprite.scale.set(5, 1.25, 1);
+            
+            scene.add(sprite);
+            animationObjects.push(sprite);
+            
+            return sprite;
+        }
+        
+        // 监听按钮点击事件
+        document.getElementById('basicAnimation').addEventListener('click', () => setActiveAnimation(createBasicAnimation()));
+        document.getElementById('clockAnimation').addEventListener('click', () => setActiveAnimation(createClockAnimation()));
+        document.getElementById('lerpAnimation').addEventListener('click', () => setActiveAnimation(createLerpAnimation()));
+        document.getElementById('circularAnimation').addEventListener('click', () => setActiveAnimation(createCircularAnimation()));
+        document.getElementById('chainAnimation').addEventListener('click', () => setActiveAnimation(createChainAnimation()));
+        
+        // 设置活动动画
+        let activeAnimationFunc = null;
+        function setActiveAnimation(animationFunc) {
+            activeAnimationFunc = animationFunc;
+        }
+        
+        // 默认动画
+        setActiveAnimation(createBasicAnimation());
+        
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 运行当前活动的动画函数
+            if (activeAnimationFunc) {
+                activeAnimationFunc();
+            }
+            
+            // 更新控制器
+            controls.update();
+            
+            // 渲染场景
+            renderer.render(scene, camera);
+        }
+        
+        // 开始动画循环
+        animate();
+        
+        // 响应窗口变化
+        window.addEventListener('resize', function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

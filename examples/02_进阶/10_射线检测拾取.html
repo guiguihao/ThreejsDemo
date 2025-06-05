@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>10_射线检测拾取</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 350px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            width: 250px;
+            font-size: 12px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 2px;
+            font-size: 11px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.active {
+            background: #ff6b6b;
+        }
+        .status {
+            background: rgba(255,255,255,0.1);
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>射线检测与对象拾取</h3>
+        <p>本示例展示了Three.js中的射线检测技术：</p>
+        <ul>
+            <li><strong>Raycaster</strong> - 射线投射器</li>
+            <li><strong>鼠标拾取</strong> - 点击对象检测</li>
+            <li><strong>悬停效果</strong> - 鼠标悬停高亮</li>
+            <li><strong>多重检测</strong> - 检测多个对象</li>
+            <li><strong>距离过滤</strong> - 按距离筛选</li>
+        </ul>
+        <p><strong>操作说明：</strong></p>
+        <p>• 移动鼠标悬停对象</p>
+        <p>• 点击对象进行选择</p>
+        <p>• 调整射线参数</p>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>检测模式</label>
+            <button id="modeHover" class="active">悬停检测</button>
+            <button id="modeClick">点击检测</button>
+            <button id="modeBoth">双重检测</button>
+        </div>
+
+        <div class="control-group">
+            <label>射线范围</label>
+            <button id="rangeNear">近距离 (< 5)</button>
+            <button id="rangeMid">中距离 (< 10)</button>
+            <button id="rangeFar">远距离 (无限)</button>
+        </div>
+
+        <div class="control-group">
+            <label>检测精度</label>
+            <button id="precisionLow">低精度</button>
+            <button id="precisionHigh" class="active">高精度</button>
+        </div>
+
+        <div class="control-group">
+            <button id="addObjects">添加更多对象</button>
+            <button id="clearSelection">清除选择</button>
+            <button id="resetScene">重置场景</button>
+        </div>
+
+        <div class="status" id="status">
+            状态：准备就绪<br>
+            检测对象：0<br>
+            选中对象：无
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 基本设置
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x000011);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // 控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // 射线检测器
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        // 存储对象和状态
+        const objects = [];
+        let selectedObject = null;
+        let hoveredObject = null;
+        let detectMode = 'hover'; // hover, click, both
+        let maxDistance = Infinity;
+        let highPrecision = true;
+
+        // 材质
+        const normalMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff88 });
+        const hoveredMaterial = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: 0x221100 });
+        const selectedMaterial = new THREE.MeshStandardMaterial({ color: 0xff0055, emissive: 0x220011 });
+
+        // 初始化场景
+        function initScene() {
+            // 添加光照
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(10, 10, 5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+
+            // 添加地面
+            const groundGeometry = new THREE.PlaneGeometry(20, 20);
+            const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // 创建初始对象
+            createInitialObjects();
+
+            // 设置相机位置
+            camera.position.set(0, 5, 10);
+            controls.target.set(0, 0, 0);
+        }
+
+        function createInitialObjects() {
+            const geometries = [
+                new THREE.BoxGeometry(1, 1, 1),
+                new THREE.SphereGeometry(0.6, 32, 32),
+                new THREE.ConeGeometry(0.6, 1.2, 8),
+                new THREE.CylinderGeometry(0.5, 0.5, 1, 16),
+                new THREE.TorusGeometry(0.5, 0.2, 16, 100),
+                new THREE.OctahedronGeometry(0.7),
+                new THREE.DodecahedronGeometry(0.6),
+                new THREE.IcosahedronGeometry(0.6)
+            ];
+
+            for (let i = 0; i < 8; i++) {
+                const geometry = geometries[i];
+                const material = normalMaterial.clone();
+                material.color.setHSL((i / 8) * 0.7 + 0.1, 0.8, 0.6);
+                
+                const mesh = new THREE.Mesh(geometry, material);
+                
+                // 圆形排列
+                const angle = (i / 8) * Math.PI * 2;
+                const radius = 4;
+                mesh.position.x = Math.cos(angle) * radius;
+                mesh.position.z = Math.sin(angle) * radius;
+                mesh.position.y = 0.5 + Math.random() * 2;
+                
+                mesh.castShadow = true;
+                mesh.userData = {
+                    id: i,
+                    originalColor: material.color.clone(),
+                    name: `对象_${i + 1}`
+                };
+                
+                scene.add(mesh);
+                objects.push(mesh);
+            }
+        }
+
+        function addMoreObjects() {
+            const count = 5;
+            const geometries = [
+                new THREE.TetrahedronGeometry(0.8),
+                new THREE.BoxGeometry(0.8, 1.2, 0.6),
+                new THREE.SphereGeometry(0.5, 16, 16),
+                new THREE.ConeGeometry(0.4, 1.5, 6),
+                new THREE.TorusKnotGeometry(0.4, 0.15, 100, 16)
+            ];
+
+            for (let i = 0; i < count; i++) {
+                const geometry = geometries[i % geometries.length];
+                const material = normalMaterial.clone();
+                material.color.setHSL(Math.random(), 0.8, 0.6);
+                
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.x = (Math.random() - 0.5) * 12;
+                mesh.position.z = (Math.random() - 0.5) * 12;
+                mesh.position.y = 0.5 + Math.random() * 3;
+                
+                mesh.castShadow = true;
+                mesh.userData = {
+                    id: objects.length,
+                    originalColor: material.color.clone(),
+                    name: `新对象_${objects.length + 1}`
+                };
+                
+                scene.add(mesh);
+                objects.push(mesh);
+            }
+            
+            updateStatus();
+        }
+
+        function onMouseMove(event) {
+            // 计算鼠标位置
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            if (detectMode === 'hover' || detectMode === 'both') {
+                performRaycast();
+            }
+        }
+
+        function onMouseClick(event) {
+            if (detectMode === 'click' || detectMode === 'both') {
+                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+                
+                performRaycast(true);
+            }
+        }
+
+        function performRaycast(isClick = false) {
+            // 设置射线
+            raycaster.setFromCamera(mouse, camera);
+            
+            // 设置射线参数
+            if (maxDistance !== Infinity) {
+                raycaster.far = maxDistance;
+            }
+            
+            // 检测相交对象
+            const intersects = raycaster.intersectObjects(objects);
+            
+            if (isClick) {
+                // 点击选择
+                if (intersects.length > 0) {
+                    selectObject(intersects[0].object);
+                } else {
+                    clearSelection();
+                }
+            } else {
+                // 悬停效果
+                if (intersects.length > 0) {
+                    hoverObject(intersects[0].object);
+                } else {
+                    clearHover();
+                }
+            }
+            
+            updateStatus(intersects);
+        }
+
+        function selectObject(object) {
+            // 清除之前的选择
+            if (selectedObject) {
+                resetObjectMaterial(selectedObject);
+            }
+            
+            selectedObject = object;
+            object.material = selectedMaterial.clone();
+            object.material.color.copy(object.userData.originalColor);
+            object.material.emissive.setHex(0x440022);
+            
+            // 添加选中动画
+            object.scale.setScalar(1.2);
+        }
+
+        function hoverObject(object) {
+            if (object === selectedObject) return;
+            
+            // 清除之前的悬停
+            if (hoveredObject && hoveredObject !== selectedObject) {
+                resetObjectMaterial(hoveredObject);
+            }
+            
+            hoveredObject = object;
+            if (object !== selectedObject) {
+                object.material = hoveredMaterial.clone();
+                object.material.color.copy(object.userData.originalColor);
+                object.material.emissive.setHex(0x221100);
+            }
+        }
+
+        function clearHover() {
+            if (hoveredObject && hoveredObject !== selectedObject) {
+                resetObjectMaterial(hoveredObject);
+            }
+            hoveredObject = null;
+        }
+
+        function clearSelection() {
+            if (selectedObject) {
+                resetObjectMaterial(selectedObject);
+                selectedObject.scale.setScalar(1);
+                selectedObject = null;
+            }
+        }
+
+        function resetObjectMaterial(object) {
+            object.material = normalMaterial.clone();
+            object.material.color.copy(object.userData.originalColor);
+        }
+
+        function updateStatus(intersects = []) {
+            const status = document.getElementById('status');
+            const detectedCount = intersects.length;
+            const selectedName = selectedObject ? selectedObject.userData.name : '无';
+            const hoveredName = hoveredObject ? hoveredObject.userData.name : '无';
+            
+            status.innerHTML = `
+                状态：${detectedCount > 0 ? '检测到对象' : '无对象'}<br>
+                总对象数：${objects.length}<br>
+                检测到：${detectedCount} 个<br>
+                选中：${selectedName}<br>
+                悬停：${hoveredName}<br>
+                射线距离：${maxDistance === Infinity ? '无限' : maxDistance.toFixed(1)}
+            `;
+        }
+
+        function resetScene() {
+            // 清除所有对象
+            objects.forEach(obj => {
+                scene.remove(obj);
+                obj.geometry.dispose();
+                obj.material.dispose();
+            });
+            objects.length = 0;
+            selectedObject = null;
+            hoveredObject = null;
+            
+            // 重新创建
+            createInitialObjects();
+            updateStatus();
+        }
+
+        // 事件监听
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('click', onMouseClick);
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 控制按钮事件
+        document.getElementById('modeHover').addEventListener('click', () => {
+            detectMode = 'hover';
+            document.querySelectorAll('[id^="mode"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('modeHover').classList.add('active');
+        });
+
+        document.getElementById('modeClick').addEventListener('click', () => {
+            detectMode = 'click';
+            document.querySelectorAll('[id^="mode"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('modeClick').classList.add('active');
+        });
+
+        document.getElementById('modeBoth').addEventListener('click', () => {
+            detectMode = 'both';
+            document.querySelectorAll('[id^="mode"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('modeBoth').classList.add('active');
+        });
+
+        document.getElementById('rangeNear').addEventListener('click', () => {
+            maxDistance = 5;
+            raycaster.far = maxDistance;
+            document.querySelectorAll('[id^="range"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('rangeNear').classList.add('active');
+        });
+
+        document.getElementById('rangeMid').addEventListener('click', () => {
+            maxDistance = 10;
+            raycaster.far = maxDistance;
+            document.querySelectorAll('[id^="range"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('rangeMid').classList.add('active');
+        });
+
+        document.getElementById('rangeFar').addEventListener('click', () => {
+            maxDistance = Infinity;
+            raycaster.far = maxDistance;
+            document.querySelectorAll('[id^="range"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('rangeFar').classList.add('active');
+        });
+
+        document.getElementById('precisionLow').addEventListener('click', () => {
+            raycaster.params.Points.threshold = 0.1;
+            document.querySelectorAll('[id^="precision"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('precisionLow').classList.add('active');
+        });
+
+        document.getElementById('precisionHigh').addEventListener('click', () => {
+            raycaster.params.Points.threshold = 0.01;
+            document.querySelectorAll('[id^="precision"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('precisionHigh').classList.add('active');
+        });
+
+        document.getElementById('addObjects').addEventListener('click', addMoreObjects);
+        document.getElementById('clearSelection').addEventListener('click', clearSelection);
+        document.getElementById('resetScene').addEventListener('click', resetScene);
+
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 旋转对象
+            objects.forEach((obj, index) => {
+                obj.rotation.y += 0.01 * (index % 2 === 0 ? 1 : -1);
+                obj.rotation.x += 0.005;
+            });
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // 初始化
+        initScene();
+        updateStatus();
+        animate();
+    </script>
+</body>
+</html>

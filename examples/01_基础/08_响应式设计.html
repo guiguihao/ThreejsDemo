@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>08_响应式设计</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 5px;
+            max-width: 350px;
+        }
+        .controls {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.5);
+            color: white;
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 5px;
+            display: flex;
+            gap: 10px;
+        }
+        .control-btn {
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        .stats {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 5px;
+            text-align: right;
+        }
+        .device-simulator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 2px solid white;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            overflow: hidden;
+            transition: all 0.5s;
+        }
+        .device-simulator.hidden {
+            display: none;
+        }
+        .device-name {
+            position: absolute;
+            bottom: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            border-radius: 15px;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>Three.js 基础 - 响应式设计</h3>
+        <p>本示例演示如何使Three.js场景适应不同设备和屏幕尺寸：</p>
+        <ul>
+            <li>动态调整渲染分辨率和像素比</li>
+            <li>根据设备性能优化场景</li>
+            <li>适应不同屏幕尺寸</li>
+            <li>检测设备类型和能力</li>
+            <li>针对移动设备优化体验</li>
+        </ul>
+        <p>使用下方控制按钮模拟不同的设备屏幕尺寸。</p>
+    </div>
+    
+    <div class="stats">
+        <div id="resolution">分辨率: <span></span></div>
+        <div id="pixelRatio">设备像素比: <span></span></div>
+        <div id="fps">FPS: <span>60</span></div>
+        <div id="triangles">三角形数: <span></span></div>
+        <div id="device">设备类型: <span></span></div>
+    </div>
+    
+    <div class="controls">
+        <button class="control-btn" id="fullscreen">全屏模式</button>
+        <button class="control-btn" id="desktop">桌面模式</button>
+        <button class="control-btn" id="tablet">平板模式</button>
+        <button class="control-btn" id="mobile">手机模式</button>
+        <button class="control-btn" id="auto">自动检测</button>
+    </div>
+    
+    <div id="deviceFrame" class="device-simulator hidden">
+        <div class="device-name" id="deviceName">设备模拟器</div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        // 导入Three.js库
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        
+        // 相机配置
+        const FOV = 75;
+        const NEAR = 0.1;
+        const FAR = 1000;
+        
+        // 设备配置
+        const deviceConfigs = {
+            desktop: {
+                width: 1920,
+                height: 1080,
+                name: "桌面电脑 (1920 × 1080)",
+                quality: 1.0,
+                complexity: 1.0
+            },
+            tablet: {
+                width: 1024,
+                height: 768,
+                name: "平板设备 (1024 × 768)",
+                quality: 0.8,
+                complexity: 0.7
+            },
+            mobile: {
+                width: 375,
+                height: 667,
+                name: "手机设备 (375 × 667)",
+                quality: 0.5,
+                complexity: 0.3
+            }
+        };
+        
+        // 创建场景
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a2933);
+        
+        // 添加雾效果
+        scene.fog = new THREE.FogExp2(0x0a2933, 0.02);
+        
+        // 创建相机
+        const camera = new THREE.PerspectiveCamera(FOV, window.innerWidth / window.innerHeight, NEAR, FAR);
+        camera.position.set(0, 3, 15);
+        
+        // 创建渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 限制最大像素比，以提高性能
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+        
+        // 创建控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 3;
+        controls.maxDistance = 30;
+        
+        // 性能监视变量
+        let lastTime = performance.now();
+        let frameCounter = 0;
+        let fps = 60;
+        
+        // 检测设备类型
+        function detectDeviceType() {
+            const ua = navigator.userAgent;
+            if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)) {
+                return /iPad|Tablet/i.test(ua) ? 'tablet' : 'mobile';
+            }
+            return 'desktop';
+        }
+        
+        // 当前设备类型
+        const currentDeviceType = detectDeviceType();
+        document.querySelector('#device span').textContent = 
+            currentDeviceType === 'desktop' ? '桌面电脑' : 
+            currentDeviceType === 'tablet' ? '平板电脑' : '手机设备';
+        
+        // 创建场景内容
+        function setupScene(complexityFactor = 1.0) {
+            // 清空现有内容
+            scene.children.forEach(child => {
+                if (child.type !== 'Camera' && child.type !== 'AmbientLight' && 
+                    child.type !== 'DirectionalLight' && child.type !== 'HemisphereLight') {
+                    scene.remove(child);
+                }
+            });
+            
+            // 添加基础灯光
+            if (!scene.getObjectByName('ambient-light')) {
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+                ambientLight.name = 'ambient-light';
+                scene.add(ambientLight);
+            }
+            
+            if (!scene.getObjectByName('directional-light')) {
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+                directionalLight.name = 'directional-light';
+                directionalLight.position.set(5, 10, 5);
+                directionalLight.castShadow = true;
+                directionalLight.shadow.mapSize.width = 1024 * complexityFactor;
+                directionalLight.shadow.mapSize.height = 1024 * complexityFactor;
+                scene.add(directionalLight);
+            }
+            
+            if (!scene.getObjectByName('hemisphere-light')) {
+                const hemisphereLight = new THREE.HemisphereLight(0x6495ED, 0xffa500, 0.3);
+                hemisphereLight.name = 'hemisphere-light';
+                scene.add(hemisphereLight);
+            }
+            
+            // 创建地面
+            const groundGeometry = new THREE.PlaneGeometry(50, 50);
+            const groundMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x333333, 
+                roughness: 0.8,
+                metalness: 0.2,
+                side: THREE.DoubleSide
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            
+            // 添加网格辅助
+            const gridHelper = new THREE.GridHelper(50, 50, 0x555555, 0x444444);
+            scene.add(gridHelper);
+            
+            // 根据复杂度创建不同数量和细节的对象
+            const objectCount = Math.floor(30 * complexityFactor);
+            const objectDetail = Math.max(8, Math.floor(32 * complexityFactor));
+            
+            // 创建不同形状的对象
+            for (let i = 0; i < objectCount; i++) {
+                let geometry, material, mesh;
+                
+                const type = Math.floor(Math.random() * 5);
+                const x = (Math.random() - 0.5) * 30;
+                const z = (Math.random() - 0.5) * 30;
+                const y = 0.5 + Math.random() * 3;
+                const color = new THREE.Color().setHSL(Math.random(), 0.7, 0.5);
+                
+                switch (type) {
+                    case 0: // 立方体
+                        geometry = new THREE.BoxGeometry(1, 1, 1);
+                        break;
+                    case 1: // 球体
+                        geometry = new THREE.SphereGeometry(0.7, objectDetail, objectDetail);
+                        break;
+                    case 2: // 圆环
+                        geometry = new THREE.TorusGeometry(0.5, 0.2, objectDetail, objectDetail);
+                        break;
+                    case 3: // 圆锥
+                        geometry = new THREE.ConeGeometry(0.7, 1.5, objectDetail);
+                        break;
+                    case 4: // 八面体
+                        geometry = new THREE.OctahedronGeometry(0.7, Math.floor(complexityFactor * 3));
+                        break;
+                }
+                
+                material = new THREE.MeshStandardMaterial({
+                    color: color,
+                    roughness: 0.7,
+                    metalness: 0.3
+                });
+                
+                mesh = new THREE.Mesh(geometry, material);
+                mesh.position.set(x, y, z);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                
+                // 添加随机旋转动画
+                mesh.userData.rotationSpeed = {
+                    x: (Math.random() - 0.5) * 0.02,
+                    y: (Math.random() - 0.5) * 0.02,
+                    z: (Math.random() - 0.5) * 0.02
+                };
+                
+                scene.add(mesh);
+            }
+            
+            // 创建中心标志物
+            const landmarkGeometry = new THREE.OctahedronGeometry(2, Math.floor(complexityFactor * 5));
+            const landmarkMaterial = new THREE.MeshStandardMaterial({
+                color: 0xffaa00,
+                roughness: 0.2,
+                metalness: 0.8
+            });
+            const landmark = new THREE.Mesh(landmarkGeometry, landmarkMaterial);
+            landmark.position.set(0, 5, 0);
+            landmark.castShadow = true;
+            landmark.userData.rotationSpeed = {
+                x: 0.005,
+                y: 0.01,
+                z: 0.002
+            };
+            scene.add(landmark);
+            
+            // 统计三角形数
+            let triangleCount = 0;
+            scene.traverse(object => {
+                if (object.isMesh) {
+                    const geometry = object.geometry;
+                    if (geometry.index !== null) {
+                        triangleCount += geometry.index.count / 3;
+                    } else {
+                        triangleCount += geometry.attributes.position.count / 3;
+                    }
+                }
+            });
+            
+            // 更新三角形数量显示
+            document.querySelector('#triangles span').textContent = triangleCount.toLocaleString();
+        }
+        
+        // 更新分辨率和性能信息
+        function updateStats(width, height, pixelRatio) {
+            document.querySelector('#resolution span').textContent = `${width} × ${height}`;
+            document.querySelector('#pixelRatio span').textContent = pixelRatio.toFixed(2);
+            document.querySelector('#fps span').textContent = fps.toFixed(0);
+        }
+        
+        // 更新FPS计数
+        function updateFPS() {
+            const now = performance.now();
+            frameCounter++;
+            
+            if (now - lastTime >= 1000) {
+                fps = frameCounter * 1000 / (now - lastTime);
+                frameCounter = 0;
+                lastTime = now;
+                document.querySelector('#fps span').textContent = fps.toFixed(0);
+            }
+        }
+        
+        // 应用设备配置
+        function applyDeviceConfig(config) {
+            // 更新设备模拟器尺寸和名称
+            const deviceFrame = document.getElementById('deviceFrame');
+            const deviceName = document.getElementById('deviceName');
+            
+            if (config === 'auto') {
+                // 如果是自动模式，隐藏设备框架
+                deviceFrame.classList.add('hidden');
+                
+                // 设置渲染器尺寸为窗口尺寸
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                
+                // 更新相机宽高比
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                
+                // 应用默认质量设置
+                const deviceType = detectDeviceType();
+                setupScene(deviceConfigs[deviceType].complexity);
+                updateStats(window.innerWidth, window.innerHeight, renderer.getPixelRatio());
+                
+                return;
+            }
+            
+            // 获取设备配置
+            const deviceConfig = deviceConfigs[config];
+            
+            // 显示设备模拟框架
+            deviceFrame.classList.remove('hidden');
+            deviceFrame.style.width = `${deviceConfig.width}px`;
+            deviceFrame.style.height = `${deviceConfig.height}px`;
+            deviceName.textContent = deviceConfig.name;
+            
+            // 设置渲染器尺寸
+            renderer.setSize(deviceConfig.width, deviceConfig.height);
+            renderer.setPixelRatio(deviceConfig.quality * window.devicePixelRatio);
+            
+            // 更新相机宽高比
+            camera.aspect = deviceConfig.width / deviceConfig.height;
+            camera.updateProjectionMatrix();
+            
+            // 调整场景复杂度
+            setupScene(deviceConfig.complexity);
+            
+            // 更新统计信息
+            updateStats(deviceConfig.width, deviceConfig.height, renderer.getPixelRatio());
+        }
+        
+        // 添加事件监听
+        document.getElementById('fullscreen').addEventListener('click', () => {
+            applyDeviceConfig('auto');
+        });
+        
+        document.getElementById('desktop').addEventListener('click', () => {
+            applyDeviceConfig('desktop');
+        });
+        
+        document.getElementById('tablet').addEventListener('click', () => {
+            applyDeviceConfig('tablet');
+        });
+        
+        document.getElementById('mobile').addEventListener('click', () => {
+            applyDeviceConfig('mobile');
+        });
+        
+        document.getElementById('auto').addEventListener('click', () => {
+            applyDeviceConfig('auto');
+        });
+        
+        // 响应窗口变化
+        window.addEventListener('resize', () => {
+            // 仅在自动模式下才响应窗口变化
+            const deviceFrame = document.getElementById('deviceFrame');
+            if (deviceFrame.classList.contains('hidden')) {
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                updateStats(window.innerWidth, window.innerHeight, renderer.getPixelRatio());
+            }
+        });
+        
+        // 初始化场景和设备配置
+        setupScene(1.0);
+        applyDeviceConfig('auto');
+        
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 更新控制器
+            controls.update();
+            
+            // 更新FPS计数
+            updateFPS();
+            
+            // 旋转场景中的对象
+            scene.traverse(object => {
+                if (object.isMesh && object.userData.rotationSpeed) {
+                    object.rotation.x += object.userData.rotationSpeed.x;
+                    object.rotation.y += object.userData.rotationSpeed.y;
+                    object.rotation.z += object.userData.rotationSpeed.z;
+                }
+            });
+            
+            // 渲染场景
+            renderer.render(scene, camera);
+        }
+        
+        // 开始动画循环
+        animate();
+    </script>
+</body>
+</html>

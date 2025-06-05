@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js 学习导航</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(45deg, #2c3e50, #3498db);
+            color: white;
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #3498db;
+        }
+
+        .section-title h2 {
+            color: #2c3e50;
+            font-size: 1.8rem;
+            margin-right: 15px;
+        }
+
+        .section-badge {
+            background: #3498db;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .examples-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .example-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .example-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            background: #ffffff;
+        }
+
+        .example-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: #3498db;
+            transform: scaleY(0);
+            transition: transform 0.3s ease;
+        }
+
+        .example-card:hover::before {
+            transform: scaleY(1);
+        }
+
+        .example-title {
+            color: #2c3e50;
+            font-size: 1.1rem;
+            font-weight: bold;
+            margin-bottom: 8px;
+            text-decoration: none;
+        }
+
+        .example-description {
+            color: #6c757d;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            background: #f8f9fa;
+            padding: 30px;
+            margin: 40px 0;
+            border-radius: 10px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #3498db;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 30px;
+            background: #2c3e50;
+            color: white;
+            margin-top: 40px;
+        }
+
+        .search-box {
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 15px 50px 15px 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 25px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        .search-input:focus {
+            border-color: #3498db;
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+
+        @media (max-width: 768px) {
+            .examples-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .main-content {
+                padding: 20px;
+            }
+            
+            .stats {
+                flex-direction: column;
+                gap: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Three.js 学习之旅</h1>
+            <p>从基础到高级，系统性学习Three.js</p>
+        </div>
+
+        <div class="main-content">
+            <!-- 统计信息 -->
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-number">20</div>
+                    <div class="stat-label">基础示例</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">15</div>
+                    <div class="stat-label">进阶技术</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">5</div>
+                    <div class="stat-label">高级特性</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">6</div>
+                    <div class="stat-label">实战项目</div>
+                </div>
+            </div>
+
+            <!-- 搜索框 -->
+            <div class="search-box">
+                <input type="text" class="search-input" placeholder="搜索示例..." id="searchInput">
+                <span class="search-icon">🔍</span>
+            </div>
+
+            <!-- 基础示例 -->
+            <div class="section">
+                <div class="section-title">
+                    <h2>📚 基础示例</h2>
+                    <span class="section-badge">20个示例</span>
+                </div>
+                <div class="examples-grid" id="basics-grid">
+                    <div class="example-card" onclick="openExample('examples/01_基础/01_场景相机渲染器.html')">
+                        <div class="example-title">场景相机渲染器</div>
+                        <div class="example-description">学习Three.js三大核心组件：场景、相机和渲染器的基本使用</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/02_几何体基础.html')">
+                        <div class="example-title">几何体基础</div>
+                        <div class="example-description">掌握基础几何体的创建和属性设置</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/03_材质介绍.html')">
+                        <div class="example-title">材质介绍</div>
+                        <div class="example-description">了解不同类型材质的特性和应用场景</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/04_光源类型.html')">
+                        <div class="example-title">光源类型</div>
+                        <div class="example-description">学习各种光源的特点和使用方法</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/05_添加纹理.html')">
+                        <div class="example-title">添加纹理</div>
+                        <div class="example-description">掌握纹理加载和应用的基本技术</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/06_基础动画.html')">
+                        <div class="example-title">基础动画</div>
+                        <div class="example-description">创建简单的3D动画效果</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/07_轨道控制器.html')">
+                        <div class="example-title">轨道控制器</div>
+                        <div class="example-description">实现鼠标交互控制相机视角</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/08_响应式设计.html')">
+                        <div class="example-title">响应式设计</div>
+                        <div class="example-description">适配不同屏幕尺寸的3D场景</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/09_坐标系统.html')">
+                        <div class="example-title">坐标系统</div>
+                        <div class="example-description">理解Three.js的坐标体系</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/10_基础交互.html')">
+                        <div class="example-title">基础交互</div>
+                        <div class="example-description">实现基本的用户交互功能</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/11_雾效果.html')">
+                        <div class="example-title">雾效果</div>
+                        <div class="example-description">添加大气雾效果增强场景深度感</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/12_阴影设置.html')">
+                        <div class="example-title">阴影设置</div>
+                        <div class="example-description">配置光源阴影增强视觉效果</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/13_组和层级.html')">
+                        <div class="example-title">组和层级</div>
+                        <div class="example-description">学习对象分组和层级管理</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/14_基础变换.html')">
+                        <div class="example-title">基础变换</div>
+                        <div class="example-description">掌握位移、旋转、缩放等基础变换</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/15_精灵和广告牌.html')">
+                        <div class="example-title">精灵和广告牌</div>
+                        <div class="example-description">创建始终面向相机的2D图像</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/16_多场景管理.html')">
+                        <div class="example-title">多场景管理</div>
+                        <div class="example-description">管理和切换多个3D场景</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/17_色彩与透明度.html')">
+                        <div class="example-title">色彩与透明度</div>
+                        <div class="example-description">控制对象的颜色和透明效果</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/18_视角控制.html')">
+                        <div class="example-title">视角控制</div>
+                        <div class="example-description">实现不同的相机视角控制</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/19_对象拾取.html')">
+                        <div class="example-title">对象拾取</div>
+                        <div class="example-description">实现鼠标点击选择3D对象</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/01_基础/20_性能监控.html')">
+                        <div class="example-title">性能监控</div>
+                        <div class="example-description">监控和优化3D场景性能</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 进阶技术 -->
+            <div class="section">
+                <div class="section-title">
+                    <h2>🚀 进阶技术</h2>
+                    <span class="section-badge">15个示例</span>
+                </div>
+                <div class="examples-grid" id="advanced-grid">
+                    <div class="example-card" onclick="openExample('examples/02_进阶/01_纹理映射与UV.html')">
+                        <div class="example-title">纹理映射与UV</div>
+                        <div class="example-description">深入学习纹理加载和UV映射技术</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/02_进阶/02_法线与凹凸贴图.html')">
+                        <div class="example-title">法线与凹凸贴图</div>
+                        <div class="example-description">使用法线贴图和凹凸贴图增强表面细节</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/02_进阶/03_环境贴图与反射.html')">
+                        <div class="example-title">环境贴图与反射</div>
+                        <div class="example-description">实现环境映射和反射效果</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/02_进阶/04_高级材质系统.html')">
+                        <div class="example-title">高级材质系统</div>
+                        <div class="example-description">掌握复杂材质类型和高级属性</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/02_进阶/05_关键帧动画.html')">
+                        <div class="example-title">关键帧动画</div>
+                        <div class="example-description">创建基于关键帧的复杂动画</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/02_进阶/06_骨骼动画系统.html')">
+                        <div class="example-title">骨骼动画系统</div>
+                        <div class="example-description">实现角色骨骼动画和蒙皮技术</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/02_进阶/07_粒子系统基础.html')">
+                        <div class="example-title">粒子系统基础</div>
+                        <div class="example-description">创建基础粒子效果系统</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/02_进阶/08_自定义粒子系统.html')">
+                        <div class="example-title">自定义粒子系统</div>
+                        <div class="example-description">开发高级粒子效果和GPU粒子</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/02_进阶/09_高级控制器.html')">
+                        <div class="example-title">高级控制器</div>
+                        <div class="example-description">使用多种控制器和自定义控制逻辑</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/02_进阶/10_射线检测拾取.html')">
+                        <div class="example-title">射线检测拾取</div>
+                        <div class="example-description">精确的射线检测和对象选择交互</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/02_进阶/11_实例化渲染.html')">
+                        <div class="example-title">实例化渲染</div>
+                        <div class="example-description">高效渲染大量相同对象</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/02_进阶/12_LOD优化技术.html')">
+                        <div class="example-title">LOD优化技术</div>
+                        <div class="example-description">实现细节层次优化提升性能</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/02_进阶/13_自定义几何体.html')">
+                        <div class="example-title">自定义几何体</div>
+                        <div class="example-description">创建自定义BufferGeometry几何体</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/02_进阶/14_着色器入门.html')">
+                        <div class="example-title">着色器入门</div>
+                        <div class="example-description">学习ShaderMaterial和GLSL基础</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/02_进阶/15_GSAP动画集成.html')">
+                        <div class="example-title">GSAP动画集成</div>
+                        <div class="example-description">结合GSAP创建流畅的动画效果</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 高级特性 -->
+            <div class="section">
+                <div class="section-title">
+                    <h2>⚡ 高级特性</h2>
+                    <span class="section-badge">5个示例</span>
+                </div>
+                <div class="examples-grid" id="expert-grid">
+                    <div class="example-card" onclick="openExample('examples/03_高级/01_后期处理效果.html')">
+                        <div class="example-title">后期处理效果</div>
+                        <div class="example-description">实现后处理管道和各种滤镜效果</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/03_高级/02_物理引擎集成.html')">
+                        <div class="example-title">物理引擎集成</div>
+                        <div class="example-description">集成物理引擎实现真实物理仿真</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/03_高级/03_复杂模型加载.html')">
+                        <div class="example-title">模型加载</div>
+                        <div class="example-description">处理FBX、OBJ、GLTF等复杂模型</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/03_高级/04_性能优化技术.html')">
+                        <div class="example-title">性能优化技术</div>
+                        <div class="example-description">掌握高级性能优化技巧和方法</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/03_高级/05_自定义着色器系统.html')">
+                        <div class="example-title">自定义着色器系统</div>
+                        <div class="example-description">开发复杂的自定义着色器效果</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 实战项目 -->
+            <div class="section">
+                <div class="section-title">
+                    <h2>🎯 实战项目</h2>
+                    <span class="section-badge">6个项目</span>
+                </div>
+                <div class="examples-grid" id="projects-grid">
+                    <div class="example-card" onclick="openExample('examples/04_实战项目/01_产品展示系统.html')">
+                        <div class="example-title">产品展示系统</div>
+                        <div class="example-description">3D产品展示和360度查看功能</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/04_实战项目/02_数据可视化大屏.html')">
+                        <div class="example-title">数据可视化大屏</div>
+                        <div class="example-description">3D图表和实时数据展示系统</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/04_实战项目/03_简单3D游戏.html')">
+                        <div class="example-title">简单3D游戏</div>
+                        <div class="example-description">基础游戏逻辑和碰撞检测系统</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/04_实战项目/04_虚拟展厅漫游.html')">
+                        <div class="example-title">虚拟展厅漫游</div>
+                        <div class="example-description">第一人称漫游和场景切换功能</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/04_实战项目/05_建筑可视化.html')">
+                        <div class="example-title">建筑可视化</div>
+                        <div class="example-description">建筑模型展示和材质切换系统</div>
+                    </div>
+                    <div class="example-card" onclick="openExample('examples/04_实战项目/06_粒子特效系统.html')">
+                        <div class="example-title">粒子特效系统</div>
+                        <div class="example-description">烟花、爆炸、魔法等特效系统</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>🌟 持续学习，不断进步！Three.js让3D编程变得简单有趣</p>
+        </div>
+    </div>
+
+    <script>
+        function openExample(path) {
+            window.open(path, '_blank');
+        }
+
+        // 搜索功能
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const allCards = document.querySelectorAll('.example-card');
+            
+            allCards.forEach(card => {
+                const title = card.querySelector('.example-title').textContent.toLowerCase();
+                const description = card.querySelector('.example-description').textContent.toLowerCase();
+                
+                if (title.includes(searchTerm) || description.includes(searchTerm)) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+
+        // 添加键盘快捷键
+        document.addEventListener('keydown', function(e) {
+            if (e.key === '/' && !e.target.matches('input')) {
+                e.preventDefault();
+                document.getElementById('searchInput').focus();
+            }
+        });
+
+        // 添加页面加载动画
+        window.addEventListener('load', function() {
+            const cards = document.querySelectorAll('.example-card');
+            cards.forEach((card, index) => {
+                setTimeout(() => {
+                    card.style.opacity = '0';
+                    card.style.transform = 'translateY(20px)';
+                    card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+                    
+                    setTimeout(() => {
+                        card.style.opacity = '1';
+                        card.style.transform = 'translateY(0)';
+                    }, 50);
+                }, index * 50);
+            });
+        });
+    </script>
+</body>
+</html>

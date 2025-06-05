@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>18 - 视角控制 | Three.js基础</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            padding: 5px;
+            font-size: 14px;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 100;
+        }
+
+        .control-panel {
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            width: 250px;
+            z-index: 100;
+        }
+
+        .control-panel h3 {
+            margin-bottom: 10px;
+            font-size: 14px;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+
+        .control-group {
+            margin-bottom: 10px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin: 5px 0;
+            font-size: 12px;
+            width: 100%;
+        }
+
+        button:hover {
+            background: #3b78e7;
+        }
+
+        select {
+            width: 100%;
+            padding: 5px;
+            margin-bottom: 10px;
+            border-radius: 3px;
+            border: 1px solid #555;
+            background-color: #333;
+            color: white;
+        }
+
+        .slider-container {
+            margin-bottom: 10px;
+        }
+
+        .slider-container label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+        }
+
+        .slider-container label span {
+            display: inline-block;
+            width: 40px;
+            text-align: right;
+        }
+
+        .slider-container input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+
+        .camera-section {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px dashed #444;
+        }
+
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            max-width: 500px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .info-panel h3 {
+            margin-bottom: 10px;
+            font-size: 16px;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+
+        .info-panel p {
+            margin-bottom: 10px;
+        }
+
+        .info-panel ul {
+            margin-left: 20px;
+            margin-bottom: 10px;
+        }
+
+        .camera-display {
+            position: absolute;
+            top: 50px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            font-size: 12px;
+            line-height: 1.5;
+            z-index: 100;
+        }
+
+        .camera-display pre {
+            white-space: pre-wrap;
+            font-family: monospace;
+            margin: 0;
+        }
+
+        .camera-view {
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            width: 200px;
+            height: 150px;
+            border: 2px solid white;
+            border-radius: 5px;
+            overflow: hidden;
+            z-index: 100;
+            background-color: #000;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">18 - 视角控制 | Three.js基础教程</div>
+    <div class="control-panel">
+        <h3>相机控制面板</h3>
+        
+        <div class="camera-section">
+            <div class="control-group">
+                <label for="camera-type">相机类型:</label>
+                <select id="camera-type">
+                    <option value="perspective">透视相机 (PerspectiveCamera)</option>
+                    <option value="orthographic">正交相机 (OrthographicCamera)</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="camera-control">控制器类型:</label>
+                <select id="camera-control">
+                    <option value="orbit">轨道控制器 (OrbitControls)</option>
+                    <option value="fly">飞行控制器 (FlyControls)</option>
+                    <option value="first-person">第一人称控制器 (FirstPersonControls)</option>
+                    <option value="track">轨迹球控制器 (TrackballControls)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="camera-section" id="perspective-controls">
+            <div class="slider-container">
+                <label>
+                    视场角 (FOV) <span id="fov-value">75°</span>
+                </label>
+                <input type="range" id="fov-slider" min="10" max="120" step="1" value="75">
+            </div>
+            
+            <div class="slider-container">
+                <label>
+                    近裁剪面 <span id="near-value">0.1</span>
+                </label>
+                <input type="range" id="near-slider" min="0.01" max="10" step="0.01" value="0.1">
+            </div>
+            
+            <div class="slider-container">
+                <label>
+                    远裁剪面 <span id="far-value">1000</span>
+                </label>
+                <input type="range" id="far-slider" min="100" max="5000" step="100" value="1000">
+            </div>
+        </div>
+        
+        <div class="camera-section" id="ortho-controls" style="display: none;">
+            <div class="slider-container">
+                <label>
+                    视图大小 <span id="zoom-value">5</span>
+                </label>
+                <input type="range" id="zoom-slider" min="1" max="20" step="0.5" value="5">
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <button id="reset-camera">重置相机位置</button>
+            <button id="add-camera-helper">添加/移除相机辅助器</button>
+        </div>
+        
+        <div class="control-group">
+            <button id="toggle-mini-view">显示/隐藏小窗口视图</button>
+            <button id="toggle-camera-info">显示/隐藏相机信息</button>
+        </div>
+        
+        <div class="control-group">
+            <button id="toggle-animation">停止动画</button>
+            <button id="add-path">创建相机动画路径</button>
+        </div>
+        
+        <div class="control-group">
+            <button id="save-position">保存当前视角</button>
+            <button id="next-position">下一个保存的视角</button>
+        </div>
+    </div>
+
+    <div class="camera-display" id="camera-info">
+        <h3>相机信息</h3>
+        <pre id="camera-data">Loading...</pre>
+    </div>
+
+    <div class="camera-view" id="mini-view" style="display: none;">
+        <!-- 小窗口视图将通过Three.js渲染在这里 -->
+    </div>
+
+    <div class="info-panel">
+        <h3>视角控制介绍</h3>
+        <p>Three.js提供了多种相机类型和控制器来创建不同的视角体验：</p>
+        <ul>
+            <li><strong>相机类型</strong>：
+                <ul>
+                    <li><strong>透视相机(PerspectiveCamera)</strong>：模拟人眼的视觉效果，远处的物体看起来较小</li>
+                    <li><strong>正交相机(OrthographicCamera)</strong>：不考虑透视效果，物体大小不随距离变化</li>
+                </ul>
+            </li>
+            <li><strong>相机控制器</strong>：
+                <ul>
+                    <li><strong>轨道控制器(OrbitControls)</strong>：围绕目标点旋转，适合观察固定物体</li>
+                    <li><strong>飞行控制器(FlyControls)</strong>：自由飞行，适合探索大型场景</li>
+                    <li><strong>第一人称控制器(FirstPersonControls)</strong>：模拟人物视角，适合行走场景</li>
+                    <li><strong>轨迹球控制器(TrackballControls)</strong>：类似轨道控制，但无垂直旋转限制</li>
+                </ul>
+            </li>
+            <li><strong>相机参数</strong>：视场角(FOV)、裁剪面(near/far)、缩放(zoom)等</li>
+        </ul>
+        <p>本示例演示了如何控制和切换不同的相机类型及控制器，以及如何调整相机参数来创建不同的视觉效果。</p>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.159.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.159.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { FlyControls } from 'three/addons/controls/FlyControls.js';
+        import { FirstPersonControls } from 'three/addons/controls/FirstPersonControls.js';
+        import { TrackballControls } from 'three/addons/controls/TrackballControls.js';
+        import { CameraHelper } from 'three';
+
+        // 初始化场景
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a);
+        scene.fog = new THREE.Fog(0x1a1a1a, 10, 50);
+
+        // 创建渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // 小窗口渲染器
+        const miniRenderer = new THREE.WebGLRenderer({ antialias: true });
+        miniRenderer.setSize(200, 150);
+        document.getElementById('mini-view').appendChild(miniRenderer.domElement);
+
+        // 相机参数
+        const cameraParams = {
+            fov: 75,
+            aspect: window.innerWidth / window.innerHeight,
+            near: 0.1,
+            far: 1000,
+            position: new THREE.Vector3(0, 5, 15),
+            target: new THREE.Vector3(0, 0, 0),
+            zoom: 5,
+            orthoSize: 5
+        };
+
+        // 创建相机
+        let mainCamera = new THREE.PerspectiveCamera(
+            cameraParams.fov,
+            cameraParams.aspect,
+            cameraParams.near,
+            cameraParams.far
+        );
+        mainCamera.position.copy(cameraParams.position);
+        mainCamera.lookAt(cameraParams.target);
+
+        // 创建正交相机
+        let orthoCamera = new THREE.OrthographicCamera(
+            -cameraParams.orthoSize * cameraParams.aspect,
+            cameraParams.orthoSize * cameraParams.aspect,
+            cameraParams.orthoSize,
+            -cameraParams.orthoSize,
+            cameraParams.near,
+            cameraParams.far
+        );
+        orthoCamera.position.copy(cameraParams.position);
+        orthoCamera.lookAt(cameraParams.target);
+
+        // 小窗口相机（固定为透视相机）
+        const overviewCamera = new THREE.PerspectiveCamera(75, 200 / 150, 0.1, 1000);
+        overviewCamera.position.set(30, 30, 30);
+        overviewCamera.lookAt(0, 0, 0);
+
+        // 当前活动相机
+        let activeCamera = mainCamera;
+
+        // 控制器
+        let controls = null;
+        let controlType = 'orbit';
+
+        // 初始化轨道控制器
+        function initOrbitControls() {
+            if (controls) {
+                controls.dispose();
+            }
+            controls = new OrbitControls(activeCamera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.screenSpacePanning = false;
+            controls.minDistance = 1;
+            controls.maxDistance = 50;
+            controls.maxPolarAngle = Math.PI / 1.5;
+            controlType = 'orbit';
+        }
+
+        // 初始化飞行控制器
+        function initFlyControls() {
+            if (controls) {
+                controls.dispose();
+            }
+            controls = new FlyControls(activeCamera, renderer.domElement);
+            controls.movementSpeed = 5;
+            controls.rollSpeed = Math.PI / 24;
+            controls.autoForward = false;
+            controls.dragToLook = true;
+            controlType = 'fly';
+        }
+
+        // 初始化第一人称控制器
+        function initFirstPersonControls() {
+            if (controls) {
+                controls.dispose();
+            }
+            controls = new FirstPersonControls(activeCamera, renderer.domElement);
+            controls.lookSpeed = 0.1;
+            controls.movementSpeed = 5;
+            controls.lookVertical = true;
+            controls.constrainVertical = true;
+            controls.verticalMin = Math.PI / 4;
+            controls.verticalMax = Math.PI / 2;
+            controlType = 'first-person';
+        }
+
+        // 初始化轨迹球控制器
+        function initTrackballControls() {
+            if (controls) {
+                controls.dispose();
+            }
+            controls = new TrackballControls(activeCamera, renderer.domElement);
+            controls.rotateSpeed = 1.0;
+            controls.zoomSpeed = 1.2;
+            controls.panSpeed = 0.8;
+            controls.noZoom = false;
+            controls.noPan = false;
+            controls.staticMoving = true;
+            controls.dynamicDampingFactor = 0.3;
+            controlType = 'track';
+        }
+
+        // 初始默认控制器
+        initOrbitControls();
+
+        // 小窗口轨道控制器
+        const miniControls = new OrbitControls(overviewCamera, miniRenderer.domElement);
+        miniControls.enableDamping = true;
+        miniControls.dampingFactor = 0.05;
+
+        // 创建场景内容
+        function createSceneContent() {
+            // 添加环境光和方向光
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 10, 7);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            // 创建网格地面
+            const gridHelper = new THREE.GridHelper(50, 50, 0x444444, 0x222222);
+            scene.add(gridHelper);
+
+            // 创建坐标轴辅助
+            const axesHelper = new THREE.AxesHelper(5);
+            scene.add(axesHelper);
+
+            // 创建一些3D对象
+            createObjects();
+
+            // 添加一个环境
+            createEnvironment();
+        }
+
+        // 创建3D对象
+        function createObjects() {
+            // 创建一个几何体组
+            const group = new THREE.Group();
+            group.name = 'objects';
+
+            // 基础几何体
+            const geometries = [
+                { geo: new THREE.BoxGeometry(2, 2, 2), pos: new THREE.Vector3(-6, 1, 0), color: 0x4285f4 },
+                { geo: new THREE.SphereGeometry(1.2, 32, 16), pos: new THREE.Vector3(-2, 1.2, 0), color: 0x0f9d58 },
+                { geo: new THREE.ConeGeometry(1.2, 2.5, 32), pos: new THREE.Vector3(2, 1.25, 0), color: 0xf4b400 },
+                { geo: new THREE.TorusGeometry(1, 0.4, 16, 32), pos: new THREE.Vector3(6, 1, 0), color: 0xdb4437 },
+                { geo: new THREE.TetrahedronGeometry(1.2), pos: new THREE.Vector3(-4, 1.2, -5), color: 0x0f9d58 },
+                { geo: new THREE.OctahedronGeometry(1.2), pos: new THREE.Vector3(0, 1.2, -5), color: 0x4285f4 },
+                { geo: new THREE.DodecahedronGeometry(1.2), pos: new THREE.Vector3(4, 1.2, -5), color: 0xf4b400 },
+                { geo: new THREE.TorusKnotGeometry(0.8, 0.3, 64, 8), pos: new THREE.Vector3(0, 1.2, 5), color: 0xdb4437 }
+            ];
+
+            geometries.forEach(item => {
+                const material = new THREE.MeshStandardMaterial({ color: item.color });
+                const mesh = new THREE.Mesh(item.geo, material);
+                mesh.position.copy(item.pos);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                group.add(mesh);
+            });
+
+            // 添加一个玻璃球作为特殊物体
+            const glassSphere = new THREE.Mesh(
+                new THREE.SphereGeometry(1.5, 32, 32),
+                new THREE.MeshPhysicalMaterial({
+                    color: 0xffffff,
+                    metalness: 0,
+                    roughness: 0,
+                    transmission: 0.9,
+                    transparent: true
+                })
+            );
+            glassSphere.position.set(0, 1.5, 10);
+            group.add(glassSphere);
+
+            scene.add(group);
+
+            // 添加地板
+            const ground = new THREE.Mesh(
+                new THREE.PlaneGeometry(100, 100),
+                new THREE.MeshStandardMaterial({ color: 0x999999 })
+            );
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = 0;
+            ground.receiveShadow = true;
+            scene.add(ground);
+        }
+
+        // 创建环境
+        function createEnvironment() {
+            // 添加一些柱子作为标记物
+            for (let i = 0; i < 20; i++) {
+                const height = 2 + Math.random() * 8;
+                const pillar = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.5, 0.5, height, 8),
+                    new THREE.MeshStandardMaterial({
+                        color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5),
+                        roughness: 0.7,
+                        metalness: 0.2
+                    })
+                );
+                
+                // 随机位置，但远离中心
+                const distance = 10 + Math.random() * 20;
+                const angle = Math.random() * Math.PI * 2;
+                
+                pillar.position.x = Math.cos(angle) * distance;
+                pillar.position.y = height / 2;
+                pillar.position.z = Math.sin(angle) * distance;
+                
+                pillar.castShadow = true;
+                pillar.receiveShadow = true;
+                
+                scene.add(pillar);
+            }
+            
+            // 添加一些围墙
+            const wallHeight = 5;
+            const wallThickness = 1;
+            const wallLength = 40;
+            const wallMaterial = new THREE.MeshStandardMaterial({
+                color: 0x555555,
+                roughness: 0.8,
+                metalness: 0.2
+            });
+            
+            // 四面围墙
+            const walls = [
+                { pos: new THREE.Vector3(0, wallHeight / 2, -wallLength / 2), size: new THREE.Vector3(wallLength, wallHeight, wallThickness), rot: 0 },
+                { pos: new THREE.Vector3(0, wallHeight / 2, wallLength / 2), size: new THREE.Vector3(wallLength, wallHeight, wallThickness), rot: 0 },
+                { pos: new THREE.Vector3(-wallLength / 2, wallHeight / 2, 0), size: new THREE.Vector3(wallThickness, wallHeight, wallLength), rot: 0 },
+                { pos: new THREE.Vector3(wallLength / 2, wallHeight / 2, 0), size: new THREE.Vector3(wallThickness, wallHeight, wallLength), rot: 0 }
+            ];
+            
+            walls.forEach(wall => {
+                const mesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(wall.size.x, wall.size.y, wall.size.z),
+                    wallMaterial
+                );
+                mesh.position.copy(wall.pos);
+                mesh.rotation.y = wall.rot;
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                scene.add(mesh);
+            });
+        }
+
+        // 创建场景内容
+        createSceneContent();
+
+        // 相机辅助器
+        let cameraHelper = null;
+
+        // 添加或移除相机辅助器
+        function toggleCameraHelper() {
+            if (cameraHelper) {
+                scene.remove(cameraHelper);
+                cameraHelper = null;
+            } else {
+                // 创建一个虚拟相机作为辅助器
+                const helperCamera = activeCamera.clone();
+                cameraHelper = new CameraHelper(helperCamera);
+                scene.add(cameraHelper);
+                
+                // 将虚拟相机连接到实际相机
+                activeCamera.userData.helperCamera = helperCamera;
+            }
+        }
+
+        // 相机路径动画
+        let cameraPath = null;
+        let pathPoints = [];
+        let pathAnimation = false;
+        let pathProgress = 0;
+
+        // 创建相机动画路径
+        function createCameraPath() {
+            // 如果已经有路径，先移除
+            if (cameraPath) {
+                scene.remove(cameraPath);
+            }
+            
+            // 创建样条曲线路径
+            pathPoints = [
+                new THREE.Vector3(15, 5, 15),
+                new THREE.Vector3(15, 8, 0),
+                new THREE.Vector3(0, 10, -15),
+                new THREE.Vector3(-15, 8, 0),
+                new THREE.Vector3(-15, 5, 15),
+                new THREE.Vector3(0, 3, 20),
+                new THREE.Vector3(15, 5, 15) // 闭合路径
+            ];
+            
+            const curve = new THREE.CatmullRomCurve3(pathPoints);
+            
+            // 创建路径可视化
+            const pathGeometry = new THREE.BufferGeometry().setFromPoints(
+                curve.getPoints(100)
+            );
+            const pathMaterial = new THREE.LineBasicMaterial({ color: 0xffff00 });
+            cameraPath = new THREE.Line(pathGeometry, pathMaterial);
+            scene.add(cameraPath);
+            
+            // 在路径上添加点标记
+            pathPoints.forEach((point, index) => {
+                const marker = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.2, 16, 16),
+                    new THREE.MeshBasicMaterial({ color: 0xffff00 })
+                );
+                marker.position.copy(point);
+                scene.add(marker);
+            });
+            
+            // 开始路径动画
+            pathAnimation = true;
+            pathProgress = 0;
+        }
+
+        // 更新相机路径动画
+        function updateCameraPath(deltaTime) {
+            if (!pathAnimation || !cameraPath) return;
+            
+            // 更新进度
+            pathProgress += deltaTime * 0.05; // 调整速度
+            if (pathProgress > 1) pathProgress = 0;
+            
+            // 计算样条曲线上的位置
+            const curve = new THREE.CatmullRomCurve3(pathPoints);
+            const position = curve.getPointAt(pathProgress);
+            
+            // 获取前方点以确定朝向
+            const lookAtPosition = curve.getPointAt((pathProgress + 0.01) % 1);
+            
+            // 更新相机位置和朝向
+            activeCamera.position.copy(position);
+            activeCamera.lookAt(lookAtPosition);
+            
+            // 如果有相机辅助器，也更新它
+            if (cameraHelper && activeCamera.userData.helperCamera) {
+                activeCamera.userData.helperCamera.position.copy(position);
+                activeCamera.userData.helperCamera.lookAt(lookAtPosition);
+                cameraHelper.update();
+            }
+        }
+
+        // 保存的相机位置
+        const savedPositions = [];
+        let currentPositionIndex = -1;
+
+        // 保存当前相机位置
+        function saveCurrentPosition() {
+            // 创建位置和目标的副本
+            const position = activeCamera.position.clone();
+            const rotation = activeCamera.rotation.clone();
+            
+            savedPositions.push({ position, rotation });
+            currentPositionIndex = savedPositions.length - 1;
+            
+            // 更新UI
+            alert(`已保存视角 #${currentPositionIndex + 1}`);
+        }
+
+        // 切换到下一个保存的位置
+        function switchToNextPosition() {
+            if (savedPositions.length === 0) {
+                alert('没有保存的视角');
+                return;
+            }
+            
+            currentPositionIndex = (currentPositionIndex + 1) % savedPositions.length;
+            const pos = savedPositions[currentPositionIndex];
+            
+            // 设置动画过渡到新位置
+            const startPosition = activeCamera.position.clone();
+            const startRotation = new THREE.Quaternion().setFromEuler(activeCamera.rotation);
+            const endRotation = new THREE.Quaternion().setFromEuler(pos.rotation);
+            
+            let progress = 0;
+            const animate = () => {
+                progress += 0.02;
+                if (progress >= 1) {
+                    activeCamera.position.copy(pos.position);
+                    activeCamera.rotation.copy(pos.rotation);
+                    return;
+                }
+                
+                // 使用lerp进行线性插值
+                activeCamera.position.lerpVectors(startPosition, pos.position, progress);
+                
+                // 使用slerp进行球面线性插值(旋转)
+                const currentRotation = new THREE.Quaternion();
+                currentRotation.slerpQuaternions(startRotation, endRotation, progress);
+                activeCamera.quaternion.copy(currentRotation);
+                
+                requestAnimationFrame(animate);
+            };
+            
+            animate();
+        }
+
+        // 更新相机信息显示
+        function updateCameraInfo() {
+            const info = document.getElementById('camera-data');
+            const pos = activeCamera.position;
+            const rot = activeCamera.rotation;
+            
+            let text = `类型: ${activeCamera === mainCamera ? '透视相机' : '正交相机'}\n`;
+            text += `控制器: ${controlType}\n`;
+            text += `位置: x=${pos.x.toFixed(2)}, y=${pos.y.toFixed(2)}, z=${pos.z.toFixed(2)}\n`;
+            text += `旋转: x=${rot.x.toFixed(2)}, y=${rot.y.toFixed(2)}, z=${rot.z.toFixed(2)}\n`;
+            
+            if (activeCamera === mainCamera) {
+                text += `FOV: ${cameraParams.fov.toFixed(1)}°\n`;
+            } else {
+                text += `正交大小: ${cameraParams.orthoSize.toFixed(1)}\n`;
+            }
+            
+            text += `近裁剪面: ${cameraParams.near.toFixed(2)}\n`;
+            text += `远裁剪面: ${cameraParams.far.toFixed(0)}\n`;
+            text += `纵横比: ${cameraParams.aspect.toFixed(2)}\n`;
+            
+            info.textContent = text;
+        }
+
+        // 重置相机位置
+        function resetCamera() {
+            if (pathAnimation) {
+                pathAnimation = false;
+            }
+            
+            activeCamera.position.copy(cameraParams.position);
+            activeCamera.lookAt(cameraParams.target);
+            
+            // 如果是正交相机，更新缩放
+            if (activeCamera === orthoCamera) {
+                updateOrthoCamera();
+            }
+            
+            // 重置控制器
+            switch (controlType) {
+                case 'orbit':
+                    initOrbitControls();
+                    break;
+                case 'fly':
+                    initFlyControls();
+                    break;
+                case 'first-person':
+                    initFirstPersonControls();
+                    break;
+                case 'track':
+                    initTrackballControls();
+                    break;
+            }
+        }
+
+        // 切换相机类型
+        function switchCameraType(type) {
+            // 保存当前位置和旋转
+            const position = activeCamera.position.clone();
+            const rotation = activeCamera.rotation.clone();
+            
+            if (type === 'perspective') {
+                activeCamera = mainCamera;
+                document.getElementById('perspective-controls').style.display = 'block';
+                document.getElementById('ortho-controls').style.display = 'none';
+            } else {
+                activeCamera = orthoCamera;
+                updateOrthoCamera();
+                document.getElementById('perspective-controls').style.display = 'none';
+                document.getElementById('ortho-controls').style.display = 'block';
+            }
+            
+            // 恢复位置和旋转
+            activeCamera.position.copy(position);
+            activeCamera.rotation.copy(rotation);
+            
+            // 更新控制器
+            switch (controlType) {
+                case 'orbit':
+                    initOrbitControls();
+                    break;
+                case 'fly':
+                    initFlyControls();
+                    break;
+                case 'first-person':
+                    initFirstPersonControls();
+                    break;
+                case 'track':
+                    initTrackballControls();
+                    break;
+            }
+        }
+
+        // 更新正交相机参数
+        function updateOrthoCamera() {
+            orthoCamera.left = -cameraParams.orthoSize * cameraParams.aspect;
+            orthoCamera.right = cameraParams.orthoSize * cameraParams.aspect;
+            orthoCamera.top = cameraParams.orthoSize;
+            orthoCamera.bottom = -cameraParams.orthoSize;
+            orthoCamera.near = cameraParams.near;
+            orthoCamera.far = cameraParams.far;
+            orthoCamera.updateProjectionMatrix();
+        }
+
+        // 更新透视相机参数
+        function updatePerspectiveCamera() {
+            mainCamera.fov = cameraParams.fov;
+            mainCamera.near = cameraParams.near;
+            mainCamera.far = cameraParams.far;
+            mainCamera.aspect = cameraParams.aspect;
+            mainCamera.updateProjectionMatrix();
+        }
+
+        // 事件监听器
+        document.getElementById('camera-type').addEventListener('change', (e) => {
+            switchCameraType(e.target.value);
+        });
+
+        document.getElementById('camera-control').addEventListener('change', (e) => {
+            switch (e.target.value) {
+                case 'orbit':
+                    initOrbitControls();
+                    break;
+                case 'fly':
+                    initFlyControls();
+                    break;
+                case 'first-person':
+                    initFirstPersonControls();
+                    break;
+                case 'track':
+                    initTrackballControls();
+                    break;
+            }
+        });
+
+        document.getElementById('fov-slider').addEventListener('input', (e) => {
+            cameraParams.fov = parseFloat(e.target.value);
+            document.getElementById('fov-value').textContent = cameraParams.fov.toFixed(1) + '°';
+            updatePerspectiveCamera();
+        });
+
+        document.getElementById('near-slider').addEventListener('input', (e) => {
+            cameraParams.near = parseFloat(e.target.value);
+            document.getElementById('near-value').textContent = cameraParams.near.toFixed(2);
+            updatePerspectiveCamera();
+            updateOrthoCamera();
+        });
+
+        document.getElementById('far-slider').addEventListener('input', (e) => {
+            cameraParams.far = parseFloat(e.target.value);
+            document.getElementById('far-value').textContent = cameraParams.far.toFixed(0);
+            updatePerspectiveCamera();
+            updateOrthoCamera();
+        });
+
+        document.getElementById('zoom-slider').addEventListener('input', (e) => {
+            cameraParams.orthoSize = parseFloat(e.target.value);
+            document.getElementById('zoom-value').textContent = cameraParams.orthoSize.toFixed(1);
+            updateOrthoCamera();
+        });
+
+        document.getElementById('reset-camera').addEventListener('click', () => {
+            resetCamera();
+        });
+
+        document.getElementById('add-camera-helper').addEventListener('click', () => {
+            toggleCameraHelper();
+        });
+
+        let miniViewVisible = false;
+        document.getElementById('toggle-mini-view').addEventListener('click', () => {
+            miniViewVisible = !miniViewVisible;
+            document.getElementById('mini-view').style.display = miniViewVisible ? 'block' : 'none';
+        });
+
+        let cameraInfoVisible = true;
+        document.getElementById('toggle-camera-info').addEventListener('click', () => {
+            cameraInfoVisible = !cameraInfoVisible;
+            document.getElementById('camera-info').style.display = cameraInfoVisible ? 'block' : 'none';
+        });
+
+        let isAnimating = true;
+        document.getElementById('toggle-animation').addEventListener('click', () => {
+            isAnimating = !isAnimating;
+            document.getElementById('toggle-animation').textContent = 
+                isAnimating ? '停止动画' : '开始动画';
+        });
+
+        document.getElementById('add-path').addEventListener('click', () => {
+            if (cameraPath) {
+                scene.remove(cameraPath);
+                cameraPath = null;
+                pathAnimation = false;
+                document.getElementById('add-path').textContent = '创建相机动画路径';
+            } else {
+                createCameraPath();
+                document.getElementById('add-path').textContent = '停止路径动画';
+            }
+        });
+
+        document.getElementById('save-position').addEventListener('click', () => {
+            saveCurrentPosition();
+        });
+
+        document.getElementById('next-position').addEventListener('click', () => {
+            switchToNextPosition();
+        });
+
+        // 响应窗口大小变化
+        window.addEventListener('resize', () => {
+            cameraParams.aspect = window.innerWidth / window.innerHeight;
+            
+            // 更新透视相机
+            mainCamera.aspect = cameraParams.aspect;
+            mainCamera.updateProjectionMatrix();
+            
+            // 更新正交相机
+            updateOrthoCamera();
+            
+            // 更新渲染器
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 动画循环
+        let lastTime = 0;
+        function animate(time) {
+            requestAnimationFrame(animate);
+            
+            const deltaTime = (time - lastTime) / 1000; // 转换为秒
+            lastTime = time;
+            
+            if (isAnimating) {
+                // 旋转场景中的对象
+                const objects = scene.getObjectByName('objects');
+                if (objects) {
+                    objects.children.forEach((child, index) => {
+                        if (child.isMesh) {
+                            child.rotation.x += 0.005;
+                            child.rotation.y += 0.01;
+                        }
+                    });
+                }
+                
+                // 更新相机路径动画
+                if (pathAnimation) {
+                    updateCameraPath(deltaTime);
+                }
+            }
+            
+            // 更新控制器
+            if (controls) {
+                if (controlType === 'first-person' || controlType === 'fly') {
+                    controls.update(deltaTime);
+                } else {
+                    controls.update();
+                }
+            }
+            
+            miniControls.update();
+            
+            // 更新相机辅助器
+            if (cameraHelper) {
+                const helperCamera = activeCamera.userData.helperCamera;
+                if (helperCamera) {
+                    helperCamera.position.copy(activeCamera.position);
+                    helperCamera.rotation.copy(activeCamera.rotation);
+                    cameraHelper.update();
+                }
+            }
+            
+            // 更新相机信息
+            updateCameraInfo();
+            
+            // 渲染场景
+            renderer.render(scene, activeCamera);
+            
+            // 渲染小窗口视图
+            if (miniViewVisible) {
+                miniRenderer.render(scene, overviewCamera);
+            }
+        }
+        
+        animate(0);
+    </script>
+</body>
+</html>

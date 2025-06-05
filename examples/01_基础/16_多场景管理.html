@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>16 - 多场景管理 | Three.js基础</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            padding: 5px;
+            font-size: 14px;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 100;
+        }
+
+        .control-panel {
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            width: 250px;
+            z-index: 100;
+        }
+
+        .control-panel h3 {
+            margin-bottom: 10px;
+            font-size: 14px;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+
+        .control-group {
+            margin-bottom: 10px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin: 5px 0;
+            font-size: 12px;
+            width: 100%;
+        }
+
+        button:hover {
+            background: #3b78e7;
+        }
+
+        select {
+            width: 100%;
+            padding: 5px;
+            margin-bottom: 10px;
+            border-radius: 3px;
+            border: 1px solid #555;
+            background-color: #333;
+            color: white;
+        }
+
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            max-width: 500px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .info-panel h3 {
+            margin-bottom: 10px;
+            font-size: 16px;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+
+        .info-panel p {
+            margin-bottom: 10px;
+        }
+
+        .info-panel ul {
+            margin-left: 20px;
+            margin-bottom: 10px;
+        }
+
+        .scene-label {
+            position: absolute;
+            font-size: 12px;
+            color: white;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 5px 10px;
+            border-radius: 3px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">16 - 多场景管理 | Three.js基础教程</div>
+    <div class="control-panel">
+        <h3>场景管理控制面板</h3>
+        <div class="control-group">
+            <label for="view-mode">查看模式：</label>
+            <select id="view-mode">
+                <option value="single">单场景模式</option>
+                <option value="multi">多场景模式</option>
+                <option value="pip">画中画模式</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="active-scene">当前活动场景：</label>
+            <select id="active-scene">
+                <option value="scene1">场景1 - 基础几何体</option>
+                <option value="scene2">场景2 - 粒子系统</option>
+                <option value="scene3">场景3 - 自定义场景</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <button id="toggle-animation">停止动画</button>
+            <button id="toggle-helpers">隐藏辅助工具</button>
+        </div>
+        <div class="control-group">
+            <button id="create-new-scene">创建新场景</button>
+            <button id="reset-scenes">重置所有场景</button>
+        </div>
+    </div>
+
+    <div class="info-panel">
+        <h3>多场景管理介绍</h3>
+        <p>在Three.js中，可以创建和管理多个场景，并在单个应用程序中进行切换或同时渲染。多场景管理的主要应用：</p>
+        <ul>
+            <li><strong>分屏显示：</strong> 在同一个画布上显示多个场景的视图</li>
+            <li><strong>画中画：</strong> 在主场景上叠加小型视图</li>
+            <li><strong>场景过渡：</strong> 在不同场景之间平滑切换</li>
+            <li><strong>层级管理：</strong> 将UI元素和3D内容分开管理</li>
+            <li><strong>性能优化：</strong> 按需渲染和加载场景内容</li>
+        </ul>
+        <p>本示例展示了如何创建、管理和切换多个Three.js场景，以及如何在单一渲染循环中高效渲染多个场景。</p>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.159.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.159.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { TransformControls } from 'three/addons/controls/TransformControls.js';
+
+        // 初始化渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        // 场景管理器类
+        class SceneManager {
+            constructor(renderer) {
+                this.renderer = renderer;
+                this.scenes = new Map();
+                this.cameras = new Map();
+                this.controls = new Map();
+                this.helpers = new Map();
+                this.activeScene = null;
+                this.viewMode = 'single'; // 'single', 'multi', 'pip'
+                
+                // 窗口大小
+                this.width = window.innerWidth;
+                this.height = window.innerHeight;
+                
+                // 场景标签
+                this.sceneLabels = new Map();
+                
+                // 初始化事件监听
+                window.addEventListener('resize', this.onWindowResize.bind(this));
+            }
+            
+            // 创建新场景
+            createScene(id, options = {}) {
+                // 创建场景
+                const scene = new THREE.Scene();
+                scene.background = options.background || new THREE.Color(0x1a1a1a);
+                scene.fog = options.fog || new THREE.Fog(0x1a1a1a, 10, 50);
+                
+                // 创建相机
+                const camera = new THREE.PerspectiveCamera(
+                    options.fov || 75,
+                    this.width / this.height,
+                    options.near || 0.1,
+                    options.far || 1000
+                );
+                camera.position.copy(options.cameraPosition || new THREE.Vector3(0, 5, 10));
+                
+                // 创建控制器
+                const controls = new OrbitControls(camera, this.renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.05;
+                
+                // 添加基本照明
+                const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+                scene.add(ambientLight);
+                
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+                directionalLight.position.set(5, 10, 7);
+                directionalLight.castShadow = true;
+                scene.add(directionalLight);
+                
+                // 添加辅助工具
+                const helpers = new THREE.Group();
+                
+                const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
+                helpers.add(gridHelper);
+                
+                const axesHelper = new THREE.AxesHelper(5);
+                helpers.add(axesHelper);
+                
+                scene.add(helpers);
+                
+                // 创建场景标签
+                this.createSceneLabel(id);
+                
+                // 存储场景及相关组件
+                this.scenes.set(id, scene);
+                this.cameras.set(id, camera);
+                this.controls.set(id, controls);
+                this.helpers.set(id, helpers);
+                
+                // 如果是第一个创建的场景，将其设为活动场景
+                if (!this.activeScene) {
+                    this.activeScene = id;
+                }
+                
+                return scene;
+            }
+            
+            // 创建场景标签
+            createSceneLabel(id) {
+                const label = document.createElement('div');
+                label.className = 'scene-label';
+                label.textContent = id;
+                label.style.display = 'none'; // 默认隐藏，多场景模式时才显示
+                document.body.appendChild(label);
+                
+                this.sceneLabels.set(id, label);
+            }
+            
+            // 更新场景标签位置
+            updateSceneLabels() {
+                // 多场景模式下才显示标签
+                const visible = this.viewMode !== 'single';
+                
+                this.sceneLabels.forEach((label, id) => {
+                    label.style.display = visible ? 'block' : 'none';
+                    
+                    if (visible) {
+                        // 计算相机位置在屏幕上的投影
+                        const camera = this.cameras.get(id);
+                        const viewportPos = this.getViewportForScene(id);
+                        
+                        // 设置标签位置
+                        label.style.left = (viewportPos.x + 10) + 'px';
+                        label.style.top = (viewportPos.y + 10) + 'px';
+                    }
+                });
+            }
+            
+            // 设置活动场景
+            setActiveScene(id) {
+                if (this.scenes.has(id)) {
+                    this.activeScene = id;
+                    
+                    // 更新UI
+                    document.getElementById('active-scene').value = id;
+                    
+                    // 单场景模式下立即渲染
+                    if (this.viewMode === 'single') {
+                        this.render();
+                    }
+                }
+            }
+            
+            // 设置视图模式
+            setViewMode(mode) {
+                this.viewMode = mode;
+                this.updateSceneLabels();
+            }
+            
+            // 获取场景的视口
+            getViewportForScene(id) {
+                const sceneIds = Array.from(this.scenes.keys());
+                const index = sceneIds.indexOf(id);
+                const total = sceneIds.length;
+                
+                // 默认全屏
+                let viewport = {
+                    x: 0,
+                    y: 0,
+                    width: this.width,
+                    height: this.height
+                };
+                
+                if (this.viewMode === 'multi') {
+                    // 多场景模式 - 把屏幕分成网格
+                    const cols = Math.ceil(Math.sqrt(total));
+                    const rows = Math.ceil(total / cols);
+                    
+                    const col = index % cols;
+                    const row = Math.floor(index / cols);
+                    
+                    viewport.width = this.width / cols;
+                    viewport.height = this.height / rows;
+                    viewport.x = col * viewport.width;
+                    viewport.y = row * viewport.height;
+                }
+                else if (this.viewMode === 'pip' && id !== this.activeScene) {
+                    // 画中画模式 - 非活动场景显示为小窗口
+                    const pipSize = Math.min(this.width, this.height) * 0.25;
+                    const padding = 20;
+                    const pipIndex = sceneIds.indexOf(id);
+                    const activeIndex = sceneIds.indexOf(this.activeScene);
+                    const otherScenes = sceneIds.filter(i => i !== this.activeScene);
+                    const pipPosition = otherScenes.indexOf(id);
+                    
+                    viewport.width = pipSize;
+                    viewport.height = pipSize;
+                    viewport.x = this.width - pipSize - padding;
+                    viewport.y = padding + pipPosition * (pipSize + padding);
+                }
+                
+                return viewport;
+            }
+            
+            // 渲染场景
+            render() {
+                if (this.viewMode === 'single') {
+                    // 单场景模式 - 只渲染活动场景
+                    const scene = this.scenes.get(this.activeScene);
+                    const camera = this.cameras.get(this.activeScene);
+                    
+                    this.renderer.setViewport(0, 0, this.width, this.height);
+                    this.renderer.render(scene, camera);
+                }
+                else {
+                    // 多场景或画中画模式
+                    this.renderer.setScissorTest(true);
+                    
+                    // 先渲染活动场景（如果是画中画模式）
+                    if (this.viewMode === 'pip') {
+                        const activeScene = this.scenes.get(this.activeScene);
+                        const activeCamera = this.cameras.get(this.activeScene);
+                        
+                        this.renderer.setViewport(0, 0, this.width, this.height);
+                        this.renderer.setScissor(0, 0, this.width, this.height);
+                        this.renderer.render(activeScene, activeCamera);
+                    }
+                    
+                    // 渲染所有场景
+                    this.scenes.forEach((scene, id) => {
+                        if (this.viewMode === 'pip' && id === this.activeScene) {
+                            return; // 画中画模式下活动场景已经渲染过
+                        }
+                        
+                        const camera = this.cameras.get(id);
+                        const viewport = this.getViewportForScene(id);
+                        
+                        this.renderer.setViewport(
+                            viewport.x, viewport.y,
+                            viewport.width, viewport.height
+                        );
+                        
+                        this.renderer.setScissor(
+                            viewport.x, viewport.y,
+                            viewport.width, viewport.height
+                        );
+                        
+                        this.renderer.render(scene, camera);
+                    });
+                    
+                    this.renderer.setScissorTest(false);
+                }
+                
+                // 更新场景标签位置
+                this.updateSceneLabels();
+            }
+            
+            // 窗口大小变化处理
+            onWindowResize() {
+                this.width = window.innerWidth;
+                this.height = window.innerHeight;
+                
+                this.renderer.setSize(this.width, this.height);
+                
+                // 更新所有相机
+                this.cameras.forEach(camera => {
+                    camera.aspect = this.width / this.height;
+                    camera.updateProjectionMatrix();
+                });
+                
+                // 重新渲染
+                this.render();
+            }
+            
+            // 更新控制器
+            update() {
+                // 更新所有控制器
+                this.controls.forEach(control => {
+                    control.update();
+                });
+            }
+            
+            // 显示/隐藏辅助工具
+            toggleHelpers(visible) {
+                this.helpers.forEach(helper => {
+                    helper.visible = visible;
+                });
+            }
+        }
+
+        // 初始化场景管理器
+        const sceneManager = new SceneManager(renderer);
+
+        // 创建三个示例场景
+        createScene1();
+        createScene2();
+        createScene3();
+
+        // 场景1 - 基础几何体
+        function createScene1() {
+            const scene = sceneManager.createScene('scene1', {
+                background: new THREE.Color(0x1a1a2a),
+                cameraPosition: new THREE.Vector3(5, 5, 10)
+            });
+            
+            // 添加一些基础几何体
+            const geometries = [
+                { geo: new THREE.BoxGeometry(1, 1, 1), pos: new THREE.Vector3(-3, 0.5, 0), color: 0x4285f4 },
+                { geo: new THREE.SphereGeometry(0.7, 32, 16), pos: new THREE.Vector3(0, 0.7, 0), color: 0x0f9d58 },
+                { geo: new THREE.ConeGeometry(0.7, 1.5, 32), pos: new THREE.Vector3(3, 0.75, 0), color: 0xf4b400 },
+                { geo: new THREE.TorusGeometry(0.7, 0.3, 16, 32), pos: new THREE.Vector3(0, 0.5, -3), color: 0xdb4437 }
+            ];
+            
+            geometries.forEach(item => {
+                const material = new THREE.MeshStandardMaterial({ color: item.color });
+                const mesh = new THREE.Mesh(item.geo, material);
+                mesh.position.copy(item.pos);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                scene.add(mesh);
+            });
+            
+            // 添加地面
+            const ground = new THREE.Mesh(
+                new THREE.PlaneGeometry(20, 20),
+                new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.8 })
+            );
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            
+            return scene;
+        }
+
+        // 场景2 - 粒子系统
+        function createScene2() {
+            const scene = sceneManager.createScene('scene2', {
+                background: new THREE.Color(0x0a0a1a),
+                cameraPosition: new THREE.Vector3(0, 5, 15)
+            });
+            
+            // 创建粒子系统
+            const particleCount = 2000;
+            const particles = new THREE.BufferGeometry();
+            
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+            const sizes = new Float32Array(particleCount);
+            
+            const color = new THREE.Color();
+            
+            for (let i = 0; i < particleCount; i++) {
+                // 位置
+                const i3 = i * 3;
+                positions[i3] = (Math.random() - 0.5) * 20;
+                positions[i3 + 1] = (Math.random() - 0.5) * 20;
+                positions[i3 + 2] = (Math.random() - 0.5) * 20;
+                
+                // 颜色
+                color.setHSL(Math.random(), 0.7, 0.7);
+                colors[i3] = color.r;
+                colors[i3 + 1] = color.g;
+                colors[i3 + 2] = color.b;
+                
+                // 大小
+                sizes[i] = Math.random() * 0.5 + 0.1;
+            }
+            
+            particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            particles.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            particles.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+            
+            // 粒子材质
+            const particleMaterial = new THREE.PointsMaterial({
+                size: 0.5,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending,
+                sizeAttenuation: true
+            });
+            
+            // 粒子系统
+            const particleSystem = new THREE.Points(particles, particleMaterial);
+            particleSystem.name = 'particleSystem';
+            scene.add(particleSystem);
+            
+            return scene;
+        }
+
+        // 场景3 - 自定义场景
+        function createScene3() {
+            const scene = sceneManager.createScene('scene3', {
+                background: new THREE.Color(0x2a1a1a),
+                cameraPosition: new THREE.Vector3(0, 10, 15)
+            });
+            
+            // 添加一个简单的地形
+            const terrainGeometry = new THREE.PlaneGeometry(20, 20, 40, 40);
+            const terrainMaterial = new THREE.MeshStandardMaterial({
+                color: 0x77aa55,
+                wireframe: false,
+                flatShading: true
+            });
+            
+            // 修改顶点高度来创建随机地形
+            const vertices = terrainGeometry.attributes.position.array;
+            for (let i = 0; i < vertices.length; i += 3) {
+                if (i % 3 === 1) {  // 只修改y值
+                    const x = vertices[i-1];
+                    const z = vertices[i+1];
+                    
+                    // 使用柏林噪声或简单的正弦函数创建地形
+                    vertices[i] = Math.sin(x / 2) * Math.cos(z / 2) * 1.5;
+                }
+            }
+            
+            terrainGeometry.computeVertexNormals();
+            
+            const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
+            terrain.rotation.x = -Math.PI / 2;
+            terrain.receiveShadow = true;
+            scene.add(terrain);
+            
+            // 添加一些树木（简单的圆锥体和圆柱体）
+            for (let i = 0; i < 20; i++) {
+                const treeGroup = new THREE.Group();
+                
+                // 树干
+                const trunkGeometry = new THREE.CylinderGeometry(0.1, 0.15, 0.8, 8);
+                const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+                const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+                trunk.position.y = 0.4;
+                trunk.castShadow = true;
+                treeGroup.add(trunk);
+                
+                // 树冠
+                const leavesGeometry = new THREE.ConeGeometry(0.5, 1.5, 8);
+                const leavesMaterial = new THREE.MeshStandardMaterial({ color: 0x2d5e2d });
+                const leaves = new THREE.Mesh(leavesGeometry, leavesMaterial);
+                leaves.position.y = 1.3;
+                leaves.castShadow = true;
+                treeGroup.add(leaves);
+                
+                // 随机位置
+                treeGroup.position.set(
+                    (Math.random() - 0.5) * 18,
+                    0,
+                    (Math.random() - 0.5) * 18
+                );
+                
+                scene.add(treeGroup);
+            }
+            
+            return scene;
+        }
+
+        // 创建新场景函数
+        function createNewScene() {
+            // 计算新场景ID
+            const newId = `scene${sceneManager.scenes.size + 1}`;
+            
+            // 创建一个随机场景
+            const scene = sceneManager.createScene(newId, {
+                background: new THREE.Color(
+                    Math.random() * 0.1,
+                    Math.random() * 0.1,
+                    Math.random() * 0.2 + 0.1
+                ),
+                cameraPosition: new THREE.Vector3(
+                    (Math.random() - 0.5) * 10,
+                    5 + Math.random() * 5,
+                    10 + Math.random() * 5
+                )
+            });
+            
+            // 随机添加一些几何体
+            const geometryTypes = [
+                new THREE.BoxGeometry(1, 1, 1),
+                new THREE.SphereGeometry(0.7, 16, 8),
+                new THREE.ConeGeometry(0.6, 1.2, 16),
+                new THREE.TorusGeometry(0.7, 0.3, 8, 16),
+                new THREE.TetrahedronGeometry(0.8),
+                new THREE.OctahedronGeometry(0.8)
+            ];
+            
+            for (let i = 0; i < 10 + Math.floor(Math.random() * 10); i++) {
+                const geometry = geometryTypes[Math.floor(Math.random() * geometryTypes.length)];
+                const material = new THREE.MeshStandardMaterial({
+                    color: Math.random() * 0xffffff,
+                    roughness: Math.random(),
+                    metalness: Math.random()
+                });
+                
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.set(
+                    (Math.random() - 0.5) * 10,
+                    Math.random() * 3,
+                    (Math.random() - 0.5) * 10
+                );
+                
+                mesh.rotation.set(
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI
+                );
+                
+                mesh.scale.set(
+                    0.5 + Math.random(),
+                    0.5 + Math.random(),
+                    0.5 + Math.random()
+                );
+                
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                
+                scene.add(mesh);
+            }
+            
+            // 添加地面
+            const ground = new THREE.Mesh(
+                new THREE.PlaneGeometry(20, 20),
+                new THREE.MeshStandardMaterial({ 
+                    color: 0x666666, 
+                    roughness: 0.9,
+                    metalness: 0.1
+                })
+            );
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            
+            // 更新场景选择菜单
+            updateSceneSelector();
+            
+            return scene;
+        }
+
+        // 重置所有场景
+        function resetScenes() {
+            // 清除所有现有场景
+            sceneManager.scenes.forEach((scene, id) => {
+                // 移除场景标签
+                const label = sceneManager.sceneLabels.get(id);
+                if (label) {
+                    document.body.removeChild(label);
+                }
+            });
+            
+            // 清空场景管理器
+            sceneManager.scenes.clear();
+            sceneManager.cameras.clear();
+            sceneManager.controls.clear();
+            sceneManager.helpers.clear();
+            sceneManager.sceneLabels.clear();
+            
+            // 重新创建基本场景
+            createScene1();
+            createScene2();
+            createScene3();
+            
+            // 更新UI
+            updateSceneSelector();
+            
+            // 设置活动场景
+            sceneManager.setActiveScene('scene1');
+        }
+
+        // 更新场景选择器
+        function updateSceneSelector() {
+            const selector = document.getElementById('active-scene');
+            selector.innerHTML = '';
+            
+            sceneManager.scenes.forEach((_, id) => {
+                const option = document.createElement('option');
+                option.value = id;
+                option.textContent = id;
+                selector.appendChild(option);
+            });
+            
+            // 设置当前选中项
+            selector.value = sceneManager.activeScene;
+        }
+
+        // 事件监听器
+        document.getElementById('view-mode').addEventListener('change', (e) => {
+            sceneManager.setViewMode(e.target.value);
+        });
+
+        document.getElementById('active-scene').addEventListener('change', (e) => {
+            sceneManager.setActiveScene(e.target.value);
+        });
+
+        let isAnimating = true;
+        document.getElementById('toggle-animation').addEventListener('click', () => {
+            isAnimating = !isAnimating;
+            document.getElementById('toggle-animation').textContent = 
+                isAnimating ? '停止动画' : '开始动画';
+        });
+
+        let helpersVisible = true;
+        document.getElementById('toggle-helpers').addEventListener('click', () => {
+            helpersVisible = !helpersVisible;
+            sceneManager.toggleHelpers(helpersVisible);
+            document.getElementById('toggle-helpers').textContent = 
+                helpersVisible ? '隐藏辅助工具' : '显示辅助工具';
+        });
+
+        document.getElementById('create-new-scene').addEventListener('click', () => {
+            createNewScene();
+        });
+
+        document.getElementById('reset-scenes').addEventListener('click', () => {
+            resetScenes();
+        });
+
+        // 动画循环
+        let time = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (isAnimating) {
+                time += 0.01;
+                
+                // 更新所有场景中的对象
+                sceneManager.scenes.forEach((scene, id) => {
+                    // 场景1 - 旋转几何体
+                    if (id === 'scene1') {
+                        scene.children.forEach(child => {
+                            if (child.isMesh && !(child.geometry instanceof THREE.PlaneGeometry)) {
+                                child.rotation.x += 0.01;
+                                child.rotation.y += 0.005;
+                            }
+                        });
+                    }
+                    
+                    // 场景2 - 粒子系统动画
+                    else if (id === 'scene2') {
+                        const particleSystem = scene.getObjectByName('particleSystem');
+                        if (particleSystem) {
+                            particleSystem.rotation.y += 0.002;
+                            particleSystem.rotation.x += 0.001;
+                            
+                            const positions = particleSystem.geometry.attributes.position.array;
+                            for (let i = 0; i < positions.length; i += 3) {
+                                positions[i + 1] += Math.sin(time + positions[i] / 2) * 0.01;
+                            }
+                            particleSystem.geometry.attributes.position.needsUpdate = true;
+                        }
+                    }
+                    
+                    // 场景3 - 树木摇晃效果
+                    else if (id === 'scene3') {
+                        scene.children.forEach(child => {
+                            if (child.isGroup) {  // 树木组
+                                child.rotation.z = Math.sin(time + child.position.x) * 0.05;
+                            }
+                        });
+                    }
+                    
+                    // 自定义场景动画
+                    else if (id.startsWith('scene')) {
+                        scene.children.forEach(child => {
+                            if (child.isMesh && !(child.geometry instanceof THREE.PlaneGeometry)) {
+                                child.rotation.x += 0.005;
+                                child.rotation.y += 0.01;
+                                child.position.y += Math.sin(time * 2 + child.position.x) * 0.005;
+                            }
+                        });
+                    }
+                });
+            }
+            
+            // 更新控制器
+            sceneManager.update();
+            
+            // 渲染场景
+            sceneManager.render();
+        }
+        
+        // 启动动画
+        animate();
+    </script>
+</body>
+</html>

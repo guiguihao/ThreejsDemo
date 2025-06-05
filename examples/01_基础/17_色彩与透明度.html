@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>17 - 色彩与透明度 | Three.js基础</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            padding: 5px;
+            font-size: 14px;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 100;
+        }
+
+        .control-panel {
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            width: 250px;
+            z-index: 100;
+        }
+
+        .control-panel h3 {
+            margin-bottom: 10px;
+            font-size: 14px;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+
+        .control-group {
+            margin-bottom: 10px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin: 5px 0;
+            font-size: 12px;
+            width: 100%;
+        }
+
+        button:hover {
+            background: #3b78e7;
+        }
+
+        .color-picker {
+            width: 100%;
+            height: 30px;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+
+        .slider-container {
+            margin-bottom: 10px;
+        }
+
+        .slider-container label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+        }
+
+        .slider-container label span {
+            display: inline-block;
+            width: 40px;
+            text-align: right;
+        }
+
+        .slider-container input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+
+        .color-section {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px dashed #444;
+        }
+
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            max-width: 500px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .info-panel h3 {
+            margin-bottom: 10px;
+            font-size: 16px;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+
+        .info-panel p {
+            margin-bottom: 10px;
+        }
+
+        .info-panel ul {
+            margin-left: 20px;
+            margin-bottom: 10px;
+        }
+
+        .color-space {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .color-space button {
+            width: 48%;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">17 - 色彩与透明度 | Three.js基础教程</div>
+    <div class="control-panel">
+        <h3>色彩与透明度控制面板</h3>
+        
+        <div class="color-section">
+            <div class="control-group">
+                <label>颜色空间:</label>
+                <div class="color-space">
+                    <button id="toggle-srgb" class="active">sRGB</button>
+                    <button id="toggle-linear">Linear</button>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label for="object-color">对象颜色:</label>
+                <input type="color" id="object-color" class="color-picker" value="#ff4444">
+            </div>
+            
+            <div class="control-group">
+                <label for="ambient-color">环境光颜色:</label>
+                <input type="color" id="ambient-color" class="color-picker" value="#444444">
+            </div>
+            
+            <div class="control-group">
+                <label for="direct-color">直射光颜色:</label>
+                <input type="color" id="direct-color" class="color-picker" value="#ffffff">
+            </div>
+        </div>
+        
+        <div class="slider-container">
+            <label>
+                透明度 <span id="opacity-value">1.0</span>
+            </label>
+            <input type="range" id="opacity-slider" min="0" max="1" step="0.01" value="1">
+        </div>
+        
+        <div class="slider-container">
+            <label>
+                环境光强度 <span id="ambient-value">0.5</span>
+            </label>
+            <input type="range" id="ambient-slider" min="0" max="2" step="0.1" value="0.5">
+        </div>
+        
+        <div class="slider-container">
+            <label>
+                直射光强度 <span id="direct-value">1.0</span>
+            </label>
+            <input type="range" id="direct-slider" min="0" max="2" step="0.1" value="1.0">
+        </div>
+        
+        <div class="control-group">
+            <button id="toggle-blending">切换混合模式</button>
+            <button id="toggle-depth-write">切换深度写入</button>
+            <button id="toggle-objects">切换对象排序</button>
+        </div>
+    </div>
+
+    <div class="info-panel">
+        <h3>色彩与透明度介绍</h3>
+        <p>在Three.js中，色彩和透明度是创建逼真3D场景的重要元素：</p>
+        <ul>
+            <li><strong>色彩空间</strong>：Three.js支持线性(Linear)和sRGB色彩空间，影响颜色的渲染效果。</li>
+            <li><strong>透明度(Opacity)</strong>：控制材质的透明程度，需要设置material.transparent = true。</li>
+            <li><strong>混合模式(Blending)</strong>：决定了半透明对象如何与背景混合，常见有THREE.NormalBlending、THREE.AdditiveBlending等。</li>
+            <li><strong>深度写入(depthWrite)</strong>：对于透明对象，通常需要禁用深度写入以避免渲染问题。</li>
+            <li><strong>对象排序</strong>：透明对象需要从后到前渲染，可以手动或使用THREE.Layers控制渲染顺序。</li>
+        </ul>
+        <p>本示例演示了如何在Three.js中控制和操作色彩与透明度，包括不同的混合模式和渲染顺序的效果。</p>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.159.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.159.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 初始化场景
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a);
+
+        // 初始化相机
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 5, 10);
+
+        // 初始化渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.outputEncoding = THREE.sRGBEncoding; // 默认使用sRGB颜色空间
+        document.body.appendChild(renderer.domElement);
+
+        // 创建轨道控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // 添加光照
+        const ambientLight = new THREE.AmbientLight(0x444444, 0.5);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 10, 7);
+        scene.add(directionalLight);
+
+        // 创建辅助工具
+        const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
+        scene.add(gridHelper);
+
+        const axesHelper = new THREE.AxesHelper(5);
+        scene.add(axesHelper);
+
+        // 创建一组透明和不透明对象
+        const objects = [];
+        const transparentObjects = [];
+        
+        // 基本材质属性
+        const materialProps = {
+            color: 0xff4444,
+            transparent: false,
+            opacity: 1.0,
+            side: THREE.DoubleSide,
+            blending: THREE.NormalBlending,
+            depthWrite: true
+        };
+        
+        // 创建几何体
+        function createObjects() {
+            // 清除现有对象
+            objects.forEach(obj => scene.remove(obj));
+            transparentObjects.forEach(obj => scene.remove(obj));
+            objects.length = 0;
+            transparentObjects.length = 0;
+            
+            // 基础几何体
+            const geometries = [
+                new THREE.BoxGeometry(1, 1, 1),
+                new THREE.SphereGeometry(0.5, 32, 16),
+                new THREE.ConeGeometry(0.5, 1, 32),
+                new THREE.TorusGeometry(0.5, 0.2, 16, 32),
+                new THREE.TetrahedronGeometry(0.5)
+            ];
+            
+            // 创建不透明对象
+            for (let i = 0; i < geometries.length; i++) {
+                const material = new THREE.MeshStandardMaterial({
+                    ...materialProps,
+                    roughness: 0.2 + i * 0.15,
+                    metalness: i * 0.2
+                });
+                
+                const mesh = new THREE.Mesh(geometries[i], material);
+                mesh.position.set(-4 + i * 2, 1, -3);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                
+                scene.add(mesh);
+                objects.push(mesh);
+            }
+            
+            // 创建透明平板
+            const planeGeometry = new THREE.PlaneGeometry(1.5, 1.5);
+            const materials = [
+                { name: 'Normal', blending: THREE.NormalBlending },
+                { name: 'Additive', blending: THREE.AdditiveBlending },
+                { name: 'Subtract', blending: THREE.SubtractiveBlending },
+                { name: 'Multiply', blending: THREE.MultiplyBlending },
+                { name: 'Screen', blending: THREE.CustomBlending }
+            ];
+            
+            for (let i = 0; i < materials.length; i++) {
+                const material = new THREE.MeshBasicMaterial({
+                    color: materialProps.color,
+                    transparent: true,
+                    opacity: 0.7,
+                    side: THREE.DoubleSide,
+                    blending: materials[i].blending,
+                    depthWrite: materialProps.depthWrite
+                });
+                
+                // 添加文字标记混合模式
+                const canvas = document.createElement('canvas');
+                canvas.width = 128;
+                canvas.height = 128;
+                const context = canvas.getContext('2d');
+                context.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                context.font = '16px Arial';
+                context.fillStyle = 'black';
+                context.textAlign = 'center';
+                context.fillText(materials[i].name, canvas.width / 2, canvas.height / 2);
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                material.map = texture;
+                
+                const plane = new THREE.Mesh(planeGeometry, material);
+                plane.position.set(-4 + i * 2, 1, 0);
+                plane.rotation.y = Math.PI / 4;
+                
+                scene.add(plane);
+                transparentObjects.push(plane);
+            }
+            
+            // 创建透明立方体层叠
+            for (let i = 0; i < 5; i++) {
+                const material = new THREE.MeshStandardMaterial({
+                    color: materialProps.color,
+                    transparent: true,
+                    opacity: 0.5,
+                    depthWrite: materialProps.depthWrite
+                });
+                
+                const cube = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material);
+                cube.position.set(0, 0.5 + i * 0.9, 3);
+                
+                scene.add(cube);
+                transparentObjects.push(cube);
+            }
+            
+            // 创建彩色透明平面
+            const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xff00ff, 0xffff00];
+            for (let i = 0; i < 5; i++) {
+                const material = new THREE.MeshBasicMaterial({
+                    color: colors[i],
+                    transparent: true,
+                    opacity: 0.5,
+                    side: THREE.DoubleSide,
+                    blending: THREE.NormalBlending,
+                    depthWrite: materialProps.depthWrite
+                });
+                
+                const plane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
+                plane.position.set(3, 1, -2 + i * 0.5);
+                plane.rotation.y = Math.PI / 3;
+                
+                scene.add(plane);
+                transparentObjects.push(plane);
+            }
+        }
+        
+        // 创建初始对象
+        createObjects();
+        
+        // 添加地面
+        const ground = new THREE.Mesh(
+            new THREE.PlaneGeometry(20, 20),
+            new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.8 })
+        );
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = 0;
+        ground.receiveShadow = true;
+        scene.add(ground);
+        
+        // 更新UI显示值
+        function updateUI() {
+            document.getElementById('opacity-value').textContent = materialProps.opacity.toFixed(2);
+            document.getElementById('ambient-value').textContent = ambientLight.intensity.toFixed(1);
+            document.getElementById('direct-value').textContent = directionalLight.intensity.toFixed(1);
+        }
+        
+        // 更新所有对象的材质
+        function updateMaterials() {
+            objects.forEach(obj => {
+                obj.material.color.set(materialProps.color);
+            });
+            
+            transparentObjects.forEach(obj => {
+                if (obj.material.type === 'MeshStandardMaterial' || obj.material.type === 'MeshBasicMaterial') {
+                    if (!obj.material.map) {  // 如果没有纹理，更新颜色
+                        obj.material.color.set(materialProps.color);
+                    }
+                    obj.material.transparent = materialProps.transparent;
+                    obj.material.opacity = materialProps.opacity;
+                    obj.material.depthWrite = materialProps.depthWrite;
+                }
+            });
+        }
+        
+        // 手动排序透明对象
+        function sortTransparentObjects() {
+            transparentObjects.sort((a, b) => {
+                // 计算到相机的距离
+                const distanceA = camera.position.distanceTo(a.position);
+                const distanceB = camera.position.distanceTo(b.position);
+                
+                // 从远到近排序（透明对象应该从后往前渲染）
+                return distanceB - distanceA;
+            });
+            
+            // 重新调整渲染顺序
+            let renderOrder = 1;
+            transparentObjects.forEach(obj => {
+                obj.renderOrder = renderOrder++;
+            });
+        }
+        
+        // 设置颜色空间
+        function setColorSpace(space) {
+            if (space === 'srgb') {
+                renderer.outputEncoding = THREE.sRGBEncoding;
+                document.getElementById('toggle-srgb').classList.add('active');
+                document.getElementById('toggle-linear').classList.remove('active');
+            } else {
+                renderer.outputEncoding = THREE.LinearEncoding;
+                document.getElementById('toggle-srgb').classList.remove('active');
+                document.getElementById('toggle-linear').classList.add('active');
+            }
+        }
+        
+        // 切换混合模式
+        function toggleBlending() {
+            const blendingModes = [
+                THREE.NormalBlending,
+                THREE.AdditiveBlending,
+                THREE.SubtractiveBlending,
+                THREE.MultiplyBlending,
+                THREE.CustomBlending
+            ];
+            
+            let currentIndex = blendingModes.indexOf(materialProps.blending);
+            currentIndex = (currentIndex + 1) % blendingModes.length;
+            materialProps.blending = blendingModes[currentIndex];
+            
+            // 更新材质
+            transparentObjects.forEach(obj => {
+                if (!obj.material.map) {  // 只更新没有纹理的材质
+                    obj.material.blending = materialProps.blending;
+                    obj.material.needsUpdate = true;
+                }
+            });
+        }
+        
+        // 事件监听器
+        document.getElementById('object-color').addEventListener('input', (e) => {
+            materialProps.color = e.target.value;
+            updateMaterials();
+        });
+        
+        document.getElementById('ambient-color').addEventListener('input', (e) => {
+            ambientLight.color.set(e.target.value);
+        });
+        
+        document.getElementById('direct-color').addEventListener('input', (e) => {
+            directionalLight.color.set(e.target.value);
+        });
+        
+        document.getElementById('opacity-slider').addEventListener('input', (e) => {
+            materialProps.opacity = parseFloat(e.target.value);
+            materialProps.transparent = materialProps.opacity < 1.0;
+            updateMaterials();
+            updateUI();
+        });
+        
+        document.getElementById('ambient-slider').addEventListener('input', (e) => {
+            ambientLight.intensity = parseFloat(e.target.value);
+            updateUI();
+        });
+        
+        document.getElementById('direct-slider').addEventListener('input', (e) => {
+            directionalLight.intensity = parseFloat(e.target.value);
+            updateUI();
+        });
+        
+        document.getElementById('toggle-srgb').addEventListener('click', () => {
+            setColorSpace('srgb');
+        });
+        
+        document.getElementById('toggle-linear').addEventListener('click', () => {
+            setColorSpace('linear');
+        });
+        
+        document.getElementById('toggle-blending').addEventListener('click', () => {
+            toggleBlending();
+        });
+        
+        document.getElementById('toggle-depth-write').addEventListener('click', () => {
+            materialProps.depthWrite = !materialProps.depthWrite;
+            updateMaterials();
+        });
+        
+        let autoSort = true;
+        document.getElementById('toggle-objects').addEventListener('click', () => {
+            autoSort = !autoSort;
+            if (autoSort) {
+                document.getElementById('toggle-objects').textContent = '关闭自动排序';
+            } else {
+                document.getElementById('toggle-objects').textContent = '开启自动排序';
+            }
+        });
+        
+        // 响应窗口大小变化
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // 初始UI显示
+        updateUI();
+        
+        // 动画循环
+        let time = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.01;
+            
+            // 旋转对象
+            objects.forEach((obj, index) => {
+                obj.rotation.x = time * (0.2 + index * 0.1);
+                obj.rotation.y = time * (0.3 + index * 0.05);
+            });
+            
+            // 旋转部分透明对象
+            transparentObjects.slice(0, 5).forEach((obj, index) => {
+                obj.rotation.y = time * (0.1 + index * 0.1);
+            });
+            
+            // 手动排序透明对象
+            if (autoSort) {
+                sortTransparentObjects();
+            }
+            
+            // 更新控制器
+            controls.update();
+            
+            // 渲染场景
+            renderer.render(scene, camera);
+        }
+        
+        animate();
+    </script>
+</body>
+</html>

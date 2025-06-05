@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>11_雾效果</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 5px;
+            max-width: 350px;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 5px;
+        }
+        .control-group {
+            margin-bottom: 10px;
+        }
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        .color-swatch {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 1px solid #fff;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>Three.js 基础 - 雾效果</h3>
+        <p>本示例演示了Three.js中的雾效果：</p>
+        <ul>
+            <li>线性雾 (Fog) - 雾密度从前到后线性增加</li>
+            <li>指数雾 (FogExp2) - 雾密度随距离指数增长</li>
+            <li>雾颜色和场景背景的关联</li>
+            <li>雾浓度参数调整</li>
+        </ul>
+        <p>使用右侧控制面板调整雾效果的参数。</p>
+    </div>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label>雾类型:</label>
+            <select id="fogType">
+                <option value="none">无雾</option>
+                <option value="linear" selected>线性雾 (Fog)</option>
+                <option value="exponential">指数雾 (FogExp2)</option>
+            </select>
+        </div>
+        
+        <div class="control-group" id="linearControls">
+            <label>近处距离 (Near): <span id="nearValue">5</span></label>
+            <input type="range" id="near" min="1" max="50" value="5" step="1">
+            
+            <label>远处距离 (Far): <span id="farValue">30</span></label>
+            <input type="range" id="far" min="10" max="100" value="30" step="1">
+        </div>
+        
+        <div class="control-group" id="expControls" style="display: none;">
+            <label>浓度 (Density): <span id="densityValue">0.05</span></label>
+            <input type="range" id="density" min="0.001" max="0.2" value="0.05" step="0.001">
+        </div>
+        
+        <div class="control-group">
+            <label>雾颜色:</label>
+            <div class="color-swatch" style="background-color: #6699ff;" data-color="#6699ff"></div>
+            <div class="color-swatch" style="background-color: #cccccc;" data-color="#cccccc"></div>
+            <div class="color-swatch" style="background-color: #ffcc00;" data-color="#ffcc00"></div>
+            <div class="color-swatch" style="background-color: #ff6666;" data-color="#ff6666"></div>
+            <div class="color-swatch" style="background-color: #66cc66;" data-color="#66cc66"></div>
+        </div>
+        
+        <div class="control-group">
+            <label>
+                <input type="checkbox" id="syncBackground" checked>
+                同步背景颜色
+            </label>
+        </div>
+        
+        <div class="control-group">
+            <button id="animateBtn">雾动画</button>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        // 导入Three.js库
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        
+        // 场景设置
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x6699ff);
+        
+        // 创建相机
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 20, 35);
+        
+        // 创建渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+        
+        // 创建控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        
+        // 添加灯光
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 10, 7.5);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.camera.near = 0.5;
+        directionalLight.shadow.camera.far = 500;
+        directionalLight.shadow.camera.left = -50;
+        directionalLight.shadow.camera.right = 50;
+        directionalLight.shadow.camera.top = 50;
+        directionalLight.shadow.camera.bottom = -50;
+        scene.add(directionalLight);
+        
+        // 创建场景内容
+        function createScene() {
+            // 创建地面
+            const planeGeometry = new THREE.PlaneGeometry(200, 200);
+            const planeMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0xcccccc,
+                side: THREE.DoubleSide
+            });
+            const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+            plane.rotation.x = -Math.PI / 2;
+            plane.receiveShadow = true;
+            scene.add(plane);
+            
+            // 创建不同的几何体
+            const geometries = [
+                new THREE.BoxGeometry(4, 4, 4),
+                new THREE.SphereGeometry(2.5, 32, 32),
+                new THREE.ConeGeometry(2, 5, 32),
+                new THREE.TorusGeometry(2, 1, 16, 32),
+                new THREE.OctahedronGeometry(2.5),
+                new THREE.CylinderGeometry(2, 2, 5, 32),
+                new THREE.TorusKnotGeometry(2, 0.6, 64, 16)
+            ];
+            
+            // 创建一些随机放置的物体
+            for (let i = 0; i < 200; i++) {
+                const geometry = geometries[Math.floor(Math.random() * geometries.length)];
+                
+                const material = new THREE.MeshStandardMaterial({
+                    color: new THREE.Color().setHSL(Math.random(), 0.7, 0.6),
+                    roughness: 0.5,
+                    metalness: Math.random() > 0.7 ? 0.7 : 0.1
+                });
+                
+                const mesh = new THREE.Mesh(geometry, material);
+                
+                // 随机位置
+                const radius = 5 + Math.random() * 100;
+                const theta = Math.random() * Math.PI * 2;
+                
+                mesh.position.set(
+                    Math.cos(theta) * radius,
+                    2 + Math.random() * 10,
+                    Math.sin(theta) * radius
+                );
+                
+                // 随机旋转
+                mesh.rotation.set(
+                    Math.random() * Math.PI * 2,
+                    Math.random() * Math.PI * 2,
+                    Math.random() * Math.PI * 2
+                );
+                
+                // 随机缩放
+                const scale = 0.5 + Math.random() * 1;
+                mesh.scale.set(scale, scale, scale);
+                
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                
+                // 添加到场景
+                scene.add(mesh);
+            }
+            
+            // 添加一些柱子作为参考点
+            for (let i = 0; i < 10; i++) {
+                const distance = 10 * (i + 1);
+                
+                const pillarGeometry = new THREE.CylinderGeometry(0.5, 0.5, 5, 16);
+                const pillarMaterial = new THREE.MeshStandardMaterial({ 
+                    color: 0xffffff,
+                    roughness: 0.3,
+                    metalness: 0.7
+                });
+                
+                const pillar = new THREE.Mesh(pillarGeometry, pillarMaterial);
+                pillar.position.set(distance, 2.5, 0);
+                pillar.castShadow = true;
+                pillar.receiveShadow = true;
+                scene.add(pillar);
+                
+                // 添加标记
+                const textCanvas = document.createElement('canvas');
+                const context = textCanvas.getContext('2d');
+                textCanvas.width = 128;
+                textCanvas.height = 64;
+                
+                context.fillStyle = 'black';
+                context.fillRect(0, 0, textCanvas.width, textCanvas.height);
+                
+                context.fillStyle = 'white';
+                context.font = 'Bold 24px Arial';
+                context.fillText(`${distance}m`, 10, 38);
+                
+                const textTexture = new THREE.CanvasTexture(textCanvas);
+                const textMaterial = new THREE.SpriteMaterial({ map: textTexture });
+                const textSprite = new THREE.Sprite(textMaterial);
+                textSprite.position.set(distance, 6, 0);
+                textSprite.scale.set(5, 2.5, 1);
+                scene.add(textSprite);
+            }
+        }
+        
+        // 初始化雾
+        let fogColor = new THREE.Color(0x6699ff);
+        let linearFog = new THREE.Fog(fogColor, 5, 30);
+        let exponentialFog = new THREE.FogExp2(fogColor, 0.05);
+        
+        scene.fog = linearFog;
+        
+        // 雾动画参数
+        const fogAnimation = {
+            active: false,
+            time: 0
+        };
+        
+        // 创建场景内容
+        createScene();
+        
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 更新控制器
+            controls.update();
+            
+            // 雾动画
+            if (fogAnimation.active) {
+                fogAnimation.time += 0.01;
+                
+                // 动态调整线性雾参数
+                if (scene.fog instanceof THREE.Fog) {
+                    const nearBase = parseFloat(document.getElementById('near').value);
+                    const farBase = parseFloat(document.getElementById('far').value);
+                    
+                    // 让雾的范围随时间呼吸
+                    const offset = Math.sin(fogAnimation.time) * 5;
+                    scene.fog.near = Math.max(0.1, nearBase + offset);
+                    scene.fog.far = farBase + offset * 2;
+                    
+                    document.getElementById('nearValue').textContent = scene.fog.near.toFixed(1);
+                    document.getElementById('farValue').textContent = scene.fog.far.toFixed(1);
+                }
+                
+                // 动态调整指数雾参数
+                else if (scene.fog instanceof THREE.FogExp2) {
+                    const densityBase = parseFloat(document.getElementById('density').value);
+                    const newDensity = densityBase + Math.sin(fogAnimation.time) * densityBase * 0.5;
+                    scene.fog.density = Math.max(0.001, newDensity);
+                    
+                    document.getElementById('densityValue').textContent = scene.fog.density.toFixed(3);
+                }
+                
+                // 改变雾的颜色
+                if (fogAnimation.time > 5) {
+                    const hue = (Date.now() * 0.00025) % 1;
+                    const newColor = new THREE.Color().setHSL(hue, 0.5, 0.5);
+                    scene.fog.color.copy(newColor);
+                    
+                    if (document.getElementById('syncBackground').checked) {
+                        scene.background.copy(newColor);
+                    }
+                }
+            }
+            
+            // 渲染场景
+            renderer.render(scene, camera);
+        }
+        
+        // 开始动画循环
+        animate();
+        
+        // 更新雾类型
+        function updateFogType() {
+            const fogType = document.getElementById('fogType').value;
+            
+            if (fogType === 'none') {
+                scene.fog = null;
+                document.getElementById('linearControls').style.display = 'none';
+                document.getElementById('expControls').style.display = 'none';
+            }
+            else if (fogType === 'linear') {
+                const near = parseFloat(document.getElementById('near').value);
+                const far = parseFloat(document.getElementById('far').value);
+                scene.fog = new THREE.Fog(fogColor, near, far);
+                document.getElementById('linearControls').style.display = 'block';
+                document.getElementById('expControls').style.display = 'none';
+            }
+            else if (fogType === 'exponential') {
+                const density = parseFloat(document.getElementById('density').value);
+                scene.fog = new THREE.FogExp2(fogColor, density);
+                document.getElementById('linearControls').style.display = 'none';
+                document.getElementById('expControls').style.display = 'block';
+            }
+        }
+        
+        // 更新雾颜色
+        function updateFogColor(color) {
+            fogColor = new THREE.Color(color);
+            if (scene.fog) {
+                scene.fog.color.copy(fogColor);
+            }
+            
+            if (document.getElementById('syncBackground').checked) {
+                scene.background.copy(fogColor);
+            }
+        }
+        
+        // 事件监听器
+        document.getElementById('fogType').addEventListener('change', updateFogType);
+        
+        document.getElementById('near').addEventListener('input', function() {
+            const near = parseFloat(this.value);
+            document.getElementById('nearValue').textContent = near;
+            
+            if (scene.fog instanceof THREE.Fog) {
+                scene.fog.near = near;
+            }
+        });
+        
+        document.getElementById('far').addEventListener('input', function() {
+            const far = parseFloat(this.value);
+            document.getElementById('farValue').textContent = far;
+            
+            if (scene.fog instanceof THREE.Fog) {
+                scene.fog.far = far;
+            }
+        });
+        
+        document.getElementById('density').addEventListener('input', function() {
+            const density = parseFloat(this.value);
+            document.getElementById('densityValue').textContent = density.toFixed(3);
+            
+            if (scene.fog instanceof THREE.FogExp2) {
+                scene.fog.density = density;
+            }
+        });
+        
+        document.getElementById('syncBackground').addEventListener('change', function() {
+            if (this.checked && scene.fog) {
+                scene.background.copy(scene.fog.color);
+            }
+        });
+        
+        document.querySelectorAll('.color-swatch').forEach(function(swatch) {
+            swatch.addEventListener('click', function() {
+                const color = this.getAttribute('data-color');
+                updateFogColor(color);
+            });
+        });
+        
+        document.getElementById('animateBtn').addEventListener('click', function() {
+            fogAnimation.active = !fogAnimation.active;
+            fogAnimation.time = 0;
+            
+            if (fogAnimation.active) {
+                this.textContent = '停止动画';
+            } else {
+                this.textContent = '雾动画';
+                
+                // 重置雾参数
+                updateFogType();
+            }
+        });
+        
+        // 响应窗口变化
+        window.addEventListener('resize', function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

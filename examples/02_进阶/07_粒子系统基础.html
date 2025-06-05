@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>07_粒子系统基础</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 15px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            border-radius: 5px;
+            max-width: 380px;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+        }
+        .preset-buttons {
+            margin-bottom: 10px;
+        }
+        .preset-buttons button {
+            margin: 2px;
+            padding: 5px 10px;
+            background: #4ecdc4;
+            border: none;
+            color: white;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>Three.js 进阶 - 粒子系统基础</h3>
+        <p>这个示例展示了：</p>
+        <ul>
+            <li>BufferGeometry粒子系统</li>
+            <li>粒子属性控制</li>
+            <li>粒子动画效果</li>
+            <li>多种粒子预设</li>
+            <li>实时参数调节</li>
+        </ul>
+    </div>
+
+    <div class="controls">
+        <div class="preset-buttons">
+            <button id="stars">星空</button>
+            <button id="snow">雪花</button>
+            <button id="fire">火焰</button>
+            <button id="galaxy">星系</button>
+        </div>
+        
+        <label>粒子数量: <span id="countValue">1000</span><br>
+        <input type="range" id="particleCount" min="100" max="5000" value="1000" step="100"></label><br>
+        
+        <label>粒子大小: <input type="range" id="particleSize" min="0.1" max="5" value="1" step="0.1"></label><br>
+        <label>动画速度: <input type="range" id="animationSpeed" min="0" max="3" value="1" step="0.1"></label><br>
+        <label>扩散范围: <input type="range" id="spread" min="1" max="50" value="20" step="1"></label><br>
+        <label>透明度: <input type="range" id="opacity" min="0" max="1" value="0.8" step="0.01"></label><br>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 创建场景
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x000011);
+
+        // 创建相机
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 30);
+
+        // 创建渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // 添加轨道控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // 创建时钟
+        const clock = new THREE.Clock();
+
+        // 粒子系统类
+        class ParticleSystem {
+            constructor(count = 1000) {
+                this.count = count;
+                this.geometry = new THREE.BufferGeometry();
+                this.material = new THREE.PointsMaterial({
+                    size: 1,
+                    transparent: true,
+                    opacity: 0.8,
+                    vertexColors: true,
+                    blending: THREE.AdditiveBlending
+                });
+                this.points = null;
+                this.animationSpeed = 1;
+                this.spread = 20;
+                
+                this.init();
+            }
+
+            init() {
+                const positions = new Float32Array(this.count * 3);
+                const colors = new Float32Array(this.count * 3);
+                const velocities = new Float32Array(this.count * 3);
+                const lifetimes = new Float32Array(this.count);
+                const sizes = new Float32Array(this.count);
+
+                for (let i = 0; i < this.count; i++) {
+                    this.resetParticle(i, positions, colors, velocities, lifetimes, sizes);
+                }
+
+                this.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                this.geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 3));
+                this.geometry.setAttribute('lifetime', new THREE.BufferAttribute(lifetimes, 1));
+                this.geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+                this.points = new THREE.Points(this.geometry, this.material);
+                scene.add(this.points);
+            }
+
+            resetParticle(i, positions, colors, velocities, lifetimes, sizes) {
+                // 基础位置（将在子类中重写）
+                positions[i * 3] = (Math.random() - 0.5) * this.spread;
+                positions[i * 3 + 1] = (Math.random() - 0.5) * this.spread;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * this.spread;
+
+                // 基础颜色
+                colors[i * 3] = Math.random();
+                colors[i * 3 + 1] = Math.random();
+                colors[i * 3 + 2] = Math.random();
+
+                // 基础速度
+                velocities[i * 3] = (Math.random() - 0.5) * 0.1;
+                velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.1;
+                velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.1;
+
+                // 生命周期
+                lifetimes[i] = Math.random() * 5 + 1;
+
+                // 大小
+                sizes[i] = Math.random() * 2 + 0.5;
+            }
+
+            update(deltaTime) {
+                const positions = this.geometry.attributes.position.array;
+                const velocities = this.geometry.attributes.velocity.array;
+                const lifetimes = this.geometry.attributes.lifetime.array;
+                const colors = this.geometry.attributes.color.array;
+
+                for (let i = 0; i < this.count; i++) {
+                    // 更新位置
+                    positions[i * 3] += velocities[i * 3] * deltaTime * this.animationSpeed;
+                    positions[i * 3 + 1] += velocities[i * 3 + 1] * deltaTime * this.animationSpeed;
+                    positions[i * 3 + 2] += velocities[i * 3 + 2] * deltaTime * this.animationSpeed;
+
+                    // 更新生命周期
+                    lifetimes[i] -= deltaTime * this.animationSpeed;
+
+                    // 重置粒子
+                    if (lifetimes[i] <= 0) {
+                        this.resetParticle(i, positions, colors, velocities, lifetimes, this.geometry.attributes.size.array);
+                    }
+                }
+
+                this.geometry.attributes.position.needsUpdate = true;
+                this.geometry.attributes.color.needsUpdate = true;
+            }
+
+            updateCount(newCount) {
+                if (this.points) {
+                    scene.remove(this.points);
+                    this.geometry.dispose();
+                }
+                this.count = newCount;
+                this.init();
+            }
+
+            setSize(size) {
+                this.material.size = size;
+            }
+
+            setOpacity(opacity) {
+                this.material.opacity = opacity;
+            }
+
+            setSpread(spread) {
+                this.spread = spread;
+            }
+
+            dispose() {
+                if (this.points) {
+                    scene.remove(this.points);
+                    this.geometry.dispose();
+                    this.material.dispose();
+                }
+            }
+        }
+
+        // 星空粒子系统
+        class StarsParticleSystem extends ParticleSystem {
+            resetParticle(i, positions, colors, velocities, lifetimes, sizes) {
+                // 球形分布
+                const radius = Math.random() * this.spread;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+
+                positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+                positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+                positions[i * 3 + 2] = radius * Math.cos(phi);
+
+                // 星星颜色（白色到蓝色）
+                const intensity = Math.random() * 0.5 + 0.5;
+                colors[i * 3] = intensity;
+                colors[i * 3 + 1] = intensity;
+                colors[i * 3 + 2] = 1;
+
+                // 几乎静止
+                velocities[i * 3] = (Math.random() - 0.5) * 0.01;
+                velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.01;
+                velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.01;
+
+                lifetimes[i] = 100; // 长生命周期
+                sizes[i] = Math.random() * 3 + 0.5;
+            }
+        }
+
+        // 雪花粒子系统
+        class SnowParticleSystem extends ParticleSystem {
+            resetParticle(i, positions, colors, velocities, lifetimes, sizes) {
+                positions[i * 3] = (Math.random() - 0.5) * this.spread * 2;
+                positions[i * 3 + 1] = this.spread;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * this.spread;
+
+                // 白色雪花
+                colors[i * 3] = 1;
+                colors[i * 3 + 1] = 1;
+                colors[i * 3 + 2] = 1;
+
+                // 向下飘落
+                velocities[i * 3] = (Math.random() - 0.5) * 0.5;
+                velocities[i * 3 + 1] = -Math.random() * 2 - 1;
+                velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
+
+                lifetimes[i] = Math.random() * 10 + 5;
+                sizes[i] = Math.random() * 2 + 1;
+            }
+        }
+
+        // 火焰粒子系统
+        class FireParticleSystem extends ParticleSystem {
+            resetParticle(i, positions, colors, velocities, lifetimes, sizes) {
+                // 从底部发射
+                const radius = Math.random() * 2;
+                const angle = Math.random() * Math.PI * 2;
+                
+                positions[i * 3] = Math.cos(angle) * radius;
+                positions[i * 3 + 1] = -this.spread / 2;
+                positions[i * 3 + 2] = Math.sin(angle) * radius;
+
+                // 火焰颜色（红橙黄）
+                const heat = Math.random();
+                colors[i * 3] = 1;
+                colors[i * 3 + 1] = heat * 0.8;
+                colors[i * 3 + 2] = heat * 0.2;
+
+                // 向上飞散
+                velocities[i * 3] = (Math.random() - 0.5) * 2;
+                velocities[i * 3 + 1] = Math.random() * 5 + 2;
+                velocities[i * 3 + 2] = (Math.random() - 0.5) * 2;
+
+                lifetimes[i] = Math.random() * 3 + 1;
+                sizes[i] = Math.random() * 4 + 1;
+            }
+        }
+
+        // 星系粒子系统
+        class GalaxyParticleSystem extends ParticleSystem {
+            resetParticle(i, positions, colors, velocities, lifetimes, sizes) {
+                // 螺旋星系形状
+                const angle = Math.random() * Math.PI * 4; // 两圈螺旋
+                const radius = Math.random() * this.spread;
+                const armOffset = Math.sin(angle * 3) * 2;
+
+                positions[i * 3] = Math.cos(angle) * radius + armOffset;
+                positions[i * 3 + 1] = (Math.random() - 0.5) * 2;
+                positions[i * 3 + 2] = Math.sin(angle) * radius + armOffset;
+
+                // 根据距离中心的远近决定颜色
+                const distance = radius / this.spread;
+                colors[i * 3] = 1 - distance * 0.5; // 红色
+                colors[i * 3 + 1] = 0.5 + distance * 0.5; // 绿色
+                colors[i * 3 + 2] = 1; // 蓝色
+
+                // 围绕中心旋转
+                const speed = (1 - distance) * 0.5 + 0.1;
+                velocities[i * 3] = -Math.sin(angle) * speed;
+                velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.1;
+                velocities[i * 3 + 2] = Math.cos(angle) * speed;
+
+                lifetimes[i] = 50;
+                sizes[i] = Math.random() * 2 + 0.5;
+            }
+        }
+
+        // 当前粒子系统
+        let currentParticleSystem = new StarsParticleSystem(1000);
+
+        // 切换粒子系统
+        function switchParticleSystem(type) {
+            const count = currentParticleSystem.count;
+            currentParticleSystem.dispose();
+
+            switch (type) {
+                case 'stars':
+                    currentParticleSystem = new StarsParticleSystem(count);
+                    scene.background = new THREE.Color(0x000011);
+                    break;
+                case 'snow':
+                    currentParticleSystem = new SnowParticleSystem(count);
+                    scene.background = new THREE.Color(0x333344);
+                    break;
+                case 'fire':
+                    currentParticleSystem = new FireParticleSystem(count);
+                    scene.background = new THREE.Color(0x110000);
+                    break;
+                case 'galaxy':
+                    currentParticleSystem = new GalaxyParticleSystem(count);
+                    scene.background = new THREE.Color(0x000000);
+                    break;
+            }
+        }
+
+        // 事件监听器
+        document.getElementById('stars').addEventListener('click', () => switchParticleSystem('stars'));
+        document.getElementById('snow').addEventListener('click', () => switchParticleSystem('snow'));
+        document.getElementById('fire').addEventListener('click', () => switchParticleSystem('fire'));
+        document.getElementById('galaxy').addEventListener('click', () => switchParticleSystem('galaxy'));
+
+        document.getElementById('particleCount').addEventListener('input', (e) => {
+            const count = parseInt(e.target.value);
+            document.getElementById('countValue').textContent = count;
+            currentParticleSystem.updateCount(count);
+        });
+
+        document.getElementById('particleSize').addEventListener('input', (e) => {
+            const size = parseFloat(e.target.value);
+            currentParticleSystem.setSize(size);
+        });
+
+        document.getElementById('animationSpeed').addEventListener('input', (e) => {
+            const speed = parseFloat(e.target.value);
+            currentParticleSystem.animationSpeed = speed;
+        });
+
+        document.getElementById('spread').addEventListener('input', (e) => {
+            const spread = parseFloat(e.target.value);
+            currentParticleSystem.setSpread(spread);
+        });
+
+        document.getElementById('opacity').addEventListener('input', (e) => {
+            const opacity = parseFloat(e.target.value);
+            currentParticleSystem.setOpacity(opacity);
+        });
+
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const deltaTime = clock.getDelta();
+            
+            currentParticleSystem.update(deltaTime);
+            
+            controls.update();
+            
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // 响应窗口大小变化
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

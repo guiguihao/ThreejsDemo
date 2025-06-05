@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>19 - 对象拾取 | Three.js基础</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            cursor: pointer;
+        }
+
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            padding: 5px;
+            font-size: 14px;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 100;
+        }
+
+        .control-panel {
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            width: 250px;
+            z-index: 100;
+        }
+
+        .control-panel h3 {
+            margin-bottom: 10px;
+            font-size: 14px;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+
+        .control-group {
+            margin-bottom: 10px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+
+        button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin: 5px 0;
+            font-size: 12px;
+            width: 100%;
+        }
+
+        button:hover {
+            background: #3b78e7;
+        }
+
+        select {
+            width: 100%;
+            padding: 5px;
+            margin-bottom: 10px;
+            border-radius: 3px;
+            border: 1px solid #555;
+            background-color: #333;
+            color: white;
+        }
+
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            max-width: 500px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .info-panel h3 {
+            margin-bottom: 10px;
+            font-size: 16px;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+
+        .info-panel p {
+            margin-bottom: 10px;
+        }
+
+        .info-panel ul {
+            margin-left: 20px;
+            margin-bottom: 10px;
+        }
+
+        .object-info {
+            position: absolute;
+            top: 50px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            max-width: 300px;
+            font-size: 12px;
+            line-height: 1.5;
+            display: none;
+        }
+
+        .object-info h3 {
+            margin-bottom: 5px;
+            font-size: 14px;
+            border-bottom: 1px solid #555;
+            padding-bottom: 3px;
+        }
+
+        .object-info p {
+            margin-bottom: 5px;
+        }
+
+        .tooltip {
+            position: absolute;
+            padding: 5px 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border-radius: 3px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 100;
+            display: none;
+        }
+
+        .loading-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            background-color: #4285f4;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">19 - 对象拾取 | Three.js基础教程</div>
+    <div class="control-panel">
+        <h3>对象拾取控制面板</h3>
+        <div class="control-group">
+            <label for="pick-method">拾取方法:</label>
+            <select id="pick-method">
+                <option value="raycaster">射线投射法 (Raycaster)</option>
+                <option value="gpu">GPU拾取法 (GPUPicker)</option>
+                <option value="id">ID拾取法 (ID Buffer)</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="pick-action">拾取后行为:</label>
+            <select id="pick-action">
+                <option value="highlight">高亮选中对象</option>
+                <option value="info">显示对象信息</option>
+                <option value="move">移动选中对象</option>
+                <option value="rotate">旋转选中对象</option>
+                <option value="delete">删除选中对象</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <button id="toggle-interaction-mode">切换交互模式</button>
+            <button id="toggle-outlines">切换轮廓显示</button>
+            <button id="toggle-labels">切换对象标签</button>
+        </div>
+        <div class="control-group">
+            <button id="add-objects">添加随机对象</button>
+            <button id="reset-objects">重置所有对象</button>
+        </div>
+        <div class="control-group">
+            <button id="toggle-helpers">显示/隐藏辅助工具</button>
+        </div>
+    </div>
+
+    <div class="object-info" id="object-details">
+        <h3>对象信息</h3>
+        <div id="object-info-content"></div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+    <div class="loading-bar" id="loading-bar"></div>
+
+    <div class="info-panel">
+        <h3>对象拾取介绍</h3>
+        <p>对象拾取是指在3D场景中通过鼠标点击或触摸来选择特定对象的技术。Three.js提供了多种实现方法：</p>
+        <ul>
+            <li><strong>射线投射法(Raycaster)</strong>：从摄像机发出一条射线，检测与场景中对象的相交</li>
+            <li><strong>GPU拾取法</strong>：为每个对象分配唯一颜色，使用GPU渲染到离屏缓冲区并读取像素颜色</li>
+            <li><strong>ID拾取法</strong>：利用自定义着色器将对象ID编码到颜色缓冲区中</li>
+        </ul>
+        <p>对象拾取的常见应用包括：交互式3D应用、游戏中的对象选择、可编辑的3D场景、数据可视化中的交互等。</p>
+        <p>本示例演示了不同的对象拾取方法，以及如何处理选中的对象（高亮、显示信息、移动、旋转或删除）。</p>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.159.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.159.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { TransformControls } from 'three/addons/controls/TransformControls.js';
+        import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+        import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
+        import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+        // 初始化场景
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a);
+
+        // 初始化相机
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 10, 20);
+        camera.lookAt(0, 0, 0);
+
+        // 初始化渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        // 初始化CSS2D渲染器用于标签
+        const labelRenderer = new CSS2DRenderer();
+        labelRenderer.setSize(window.innerWidth, window.innerHeight);
+        labelRenderer.domElement.style.position = 'absolute';
+        labelRenderer.domElement.style.top = '0';
+        labelRenderer.domElement.style.pointerEvents = 'none';
+        document.body.appendChild(labelRenderer.domElement);
+
+        // 创建轨道控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // 创建变换控制器（用于移动和旋转对象）
+        const transformControls = new TransformControls(camera, renderer.domElement);
+        transformControls.addEventListener('dragging-changed', function (event) {
+            controls.enabled = !event.value;
+        });
+        scene.add(transformControls);
+
+        // 添加光照
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 10, 7);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 1024;
+        directionalLight.shadow.mapSize.height = 1024;
+        scene.add(directionalLight);
+
+        // 创建辅助工具
+        const gridHelper = new THREE.GridHelper(20, 20, 0x444444, 0x222222);
+        scene.add(gridHelper);
+
+        const axesHelper = new THREE.AxesHelper(5);
+        scene.add(axesHelper);
+
+        // 后期处理特效
+        const composer = new EffectComposer(renderer);
+        const renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
+
+        // 添加轮廓通道
+        const outlinePass = new OutlinePass(
+            new THREE.Vector2(window.innerWidth, window.innerHeight),
+            scene,
+            camera
+        );
+        outlinePass.edgeStrength = 3;
+        outlinePass.edgeGlow = 0.5;
+        outlinePass.edgeThickness = 1;
+        outlinePass.pulsePeriod = 2;
+        outlinePass.visibleEdgeColor.set(0xffff00);
+        outlinePass.hiddenEdgeColor.set(0x190a05);
+        composer.addPass(outlinePass);
+
+        // 添加FXAA抗锯齿
+        const fxaaPass = new ShaderPass(FXAAShader);
+        fxaaPass.material.uniforms['resolution'].value.set(
+            1 / (window.innerWidth * renderer.getPixelRatio()),
+            1 / (window.innerHeight * renderer.getPixelRatio())
+        );
+        composer.addPass(fxaaPass);
+
+        // 当前选中的对象
+        let selectedObject = null;
+        let previousColor = null;
+
+        // 用于唯一标识对象的ID
+        let nextObjectId = 1;
+
+        // 拾取相关设置
+        const pickSettings = {
+            method: 'raycaster', // 'raycaster', 'gpu', 'id'
+            action: 'highlight', // 'highlight', 'info', 'move', 'rotate', 'delete'
+            interactionMode: 'click', // 'click', 'hover'
+            showOutlines: true,
+            showLabels: false
+        };
+
+        // 射线投射器
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        // 创建场景对象
+        function createSceneObjects() {
+            // 创建地面
+            const ground = new THREE.Mesh(
+                new THREE.PlaneGeometry(50, 50),
+                new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 })
+            );
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = 0;
+            ground.receiveShadow = true;
+            ground.name = "地面";
+            scene.add(ground);
+
+            // 创建一些可拾取的对象
+            createPickableObjects();
+        }
+
+        // 创建一组可拾取的对象
+        function createPickableObjects(count = 20) {
+            // 定义几何体类型
+            const geometryTypes = [
+                new THREE.BoxGeometry(2, 2, 2),
+                new THREE.SphereGeometry(1, 32, 16),
+                new THREE.ConeGeometry(1, 2, 32),
+                new THREE.TorusGeometry(1, 0.4, 16, 32),
+                new THREE.TetrahedronGeometry(1.2),
+                new THREE.OctahedronGeometry(1.2),
+                new THREE.DodecahedronGeometry(1.2),
+                new THREE.CylinderGeometry(0.8, 0.8, 2, 32)
+            ];
+
+            // 对象组
+            const objectsGroup = new THREE.Group();
+            objectsGroup.name = "可拾取对象组";
+
+            // 创建对象
+            for (let i = 0; i < count; i++) {
+                const geometryIndex = Math.floor(Math.random() * geometryTypes.length);
+                const geometry = geometryTypes[geometryIndex];
+                
+                // 随机颜色
+                const color = new THREE.Color().setHSL(Math.random(), 0.7, 0.5);
+                
+                // 创建材质
+                const material = new THREE.MeshStandardMaterial({
+                    color: color,
+                    roughness: 0.5 + Math.random() * 0.5,
+                    metalness: Math.random() * 0.5
+                });
+                
+                // 创建网格
+                const mesh = new THREE.Mesh(geometry, material);
+                
+                // 设置位置
+                const radius = 8 + Math.random() * 8;
+                const angle = Math.random() * Math.PI * 2;
+                
+                mesh.position.x = Math.cos(angle) * radius;
+                mesh.position.z = Math.sin(angle) * radius;
+                mesh.position.y = 1 + Math.random() * 3;
+                
+                // 随机旋转
+                mesh.rotation.x = Math.random() * Math.PI;
+                mesh.rotation.y = Math.random() * Math.PI;
+                mesh.rotation.z = Math.random() * Math.PI;
+                
+                // 设置阴影
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                
+                // 添加ID和名称
+                mesh.userData.id = nextObjectId++;
+                mesh.name = `对象${mesh.userData.id}`;
+                
+                // 添加一些随机属性以供显示
+                mesh.userData.type = getGeometryName(geometryIndex);
+                mesh.userData.mass = (1 + Math.random() * 10).toFixed(2);
+                mesh.userData.material = Math.random() > 0.5 ? "金属" : "塑料";
+                mesh.userData.created = new Date().toLocaleString();
+                
+                // 将网格添加到组中
+                objectsGroup.add(mesh);
+                
+                // 如果需要显示标签，为对象添加标签
+                if (pickSettings.showLabels) {
+                    addLabelToObject(mesh);
+                }
+            }
+            
+            // 将对象组添加到场景
+            scene.add(objectsGroup);
+            
+            return objectsGroup;
+        }
+
+        // 为对象添加标签
+        function addLabelToObject(object) {
+            const div = document.createElement('div');
+            div.className = 'object-label';
+            div.textContent = object.name;
+            div.style.color = '#ffffff';
+            div.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
+            div.style.padding = '2px 5px';
+            div.style.borderRadius = '3px';
+            div.style.fontSize = '10px';
+            div.style.pointerEvents = 'none';
+            div.style.width = 'max-content';
+            
+            const label = new CSS2DObject(div);
+            label.position.set(0, 1.5, 0);
+            object.add(label);
+            object.userData.label = label;
+        }
+
+        // 获取几何体类型名称
+        function getGeometryName(index) {
+            const names = [
+                "立方体", "球体", "圆锥体", "圆环", 
+                "四面体", "八面体", "十二面体", "圆柱体"
+            ];
+            return names[index] || "未知";
+        }
+
+        // 处理窗口大小变化
+        function handleResize() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            
+            renderer.setSize(width, height);
+            composer.setSize(width, height);
+            labelRenderer.setSize(width, height);
+            
+            // 更新FXAA通道的分辨率
+            fxaaPass.material.uniforms['resolution'].value.set(
+                1 / (width * renderer.getPixelRatio()),
+                1 / (height * renderer.getPixelRatio())
+            );
+        }
+
+        // 处理鼠标移动
+        function handleMouseMove(event) {
+            // 计算归一化设备坐标
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            if (pickSettings.interactionMode === 'hover') {
+                // 如果是悬停模式，执行拾取
+                performPicking();
+            }
+            
+            // 更新工具提示位置
+            updateTooltipPosition(event);
+        }
+
+        // 处理鼠标点击
+        function handleMouseClick(event) {
+            if (pickSettings.interactionMode === 'click') {
+                // 计算归一化设备坐标
+                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+                
+                // 执行拾取
+                performPicking();
+            }
+        }
+
+        // 执行对象拾取
+        function performPicking() {
+            // 移除之前选中对象的高亮
+            if (selectedObject) {
+                if (pickSettings.action === 'highlight' && previousColor) {
+                    selectedObject.material.color.copy(previousColor);
+                    previousColor = null;
+                }
+                
+                // 如果正在使用变换控制器，移除它
+                if (transformControls.object === selectedObject) {
+                    transformControls.detach();
+                }
+                
+                // 隐藏对象信息面板
+                if (pickSettings.action === 'info') {
+                    document.getElementById('object-details').style.display = 'none';
+                }
+                
+                // 更新轮廓通道
+                if (pickSettings.showOutlines) {
+                    outlinePass.selectedObjects = [];
+                }
+            }
+            
+            // 根据选择的方法执行拾取
+            let intersectedObject = null;
+            
+            switch (pickSettings.method) {
+                case 'raycaster':
+                    intersectedObject = pickWithRaycaster();
+                    break;
+                case 'gpu':
+                    intersectedObject = pickWithGPU();
+                    break;
+                case 'id':
+                    intersectedObject = pickWithIDBuffer();
+                    break;
+            }
+            
+            // 如果有拾取到的对象
+            if (intersectedObject) {
+                selectedObject = intersectedObject;
+                
+                // 根据选择的行为处理对象
+                switch (pickSettings.action) {
+                    case 'highlight':
+                        // 高亮选中的对象
+                        previousColor = selectedObject.material.color.clone();
+                        selectedObject.material.color.set(0xffff00);
+                        break;
+                    case 'info':
+                        // 显示对象信息
+                        displayObjectInfo(selectedObject);
+                        break;
+                    case 'move':
+                        // 启用移动控制
+                        transformControls.setMode('translate');
+                        transformControls.attach(selectedObject);
+                        break;
+                    case 'rotate':
+                        // 启用旋转控制
+                        transformControls.setMode('rotate');
+                        transformControls.attach(selectedObject);
+                        break;
+                    case 'delete':
+                        // 删除对象
+                        deleteObject(selectedObject);
+                        selectedObject = null;
+                        return;
+                }
+                
+                // 更新轮廓通道
+                if (pickSettings.showOutlines) {
+                    outlinePass.selectedObjects = [selectedObject];
+                }
+                
+                // 更新工具提示
+                showTooltip(selectedObject);
+            } else {
+                // 如果没有拾取到对象，隐藏工具提示
+                hideTooltip();
+                selectedObject = null;
+            }
+        }
+
+        // 使用Raycaster进行拾取
+        function pickWithRaycaster() {
+            raycaster.setFromCamera(mouse, camera);
+            
+            // 获取可拾取的对象
+            const objectsGroup = scene.getObjectByName("可拾取对象组");
+            if (!objectsGroup) return null;
+            
+            // 计算射线与对象的交点
+            const intersects = raycaster.intersectObjects(objectsGroup.children, false);
+            
+            // 返回第一个相交的对象
+            return intersects.length > 0 ? intersects[0].object : null;
+        }
+
+        // 使用GPU进行拾取（简化版，实际上仍然使用Raycaster）
+        function pickWithGPU() {
+            // 在实际项目中，应该使用离屏渲染和GPU读取像素颜色的方法
+            // 由于这需要更复杂的设置，这里我们简化为使用Raycaster
+            return pickWithRaycaster();
+        }
+
+        // 使用ID缓冲区进行拾取（简化版，实际上仍然使用Raycaster）
+        function pickWithIDBuffer() {
+            // 在实际项目中，应该使用自定义着色器将对象ID编码到颜色缓冲区中
+            // 由于这需要更复杂的设置，这里我们简化为使用Raycaster
+            return pickWithRaycaster();
+        }
+
+        // 显示对象信息
+        function displayObjectInfo(object) {
+            const infoPanel = document.getElementById('object-details');
+            const content = document.getElementById('object-info-content');
+            
+            // 构建对象信息HTML
+            let infoHTML = `
+                <p><strong>名称:</strong> ${object.name}</p>
+                <p><strong>类型:</strong> ${object.userData.type}</p>
+                <p><strong>位置:</strong> x=${object.position.x.toFixed(2)}, y=${object.position.y.toFixed(2)}, z=${object.position.z.toFixed(2)}</p>
+                <p><strong>旋转:</strong> x=${object.rotation.x.toFixed(2)}, y=${object.rotation.y.toFixed(2)}, z=${object.rotation.z.toFixed(2)}</p>
+                <p><strong>质量:</strong> ${object.userData.mass} kg</p>
+                <p><strong>材料:</strong> ${object.userData.material}</p>
+                <p><strong>创建时间:</strong> ${object.userData.created}</p>
+            `;
+            
+            content.innerHTML = infoHTML;
+            infoPanel.style.display = 'block';
+        }
+
+        // 删除对象
+        function deleteObject(object) {
+            // 如果对象有标签，移除标签
+            if (object.userData.label) {
+                object.remove(object.userData.label);
+            }
+            
+            // 如果对象是变换控制器的目标，解除连接
+            if (transformControls.object === object) {
+                transformControls.detach();
+            }
+            
+            // 从场景中移除对象
+            const objectsGroup = scene.getObjectByName("可拾取对象组");
+            if (objectsGroup) {
+                objectsGroup.remove(object);
+            }
+            
+            // 显示删除反馈
+            showLoadingBar(100);
+            setTimeout(() => hideLoadingBar(), 500);
+        }
+
+        // 添加随机对象
+        function addRandomObjects() {
+            const objectsGroup = scene.getObjectByName("可拾取对象组");
+            if (!objectsGroup) {
+                createPickableObjects(5);
+            } else {
+                // 添加5个新对象
+                for (let i = 0; i < 5; i++) {
+                    const geometryIndex = Math.floor(Math.random() * 8);
+                    const geometryTypes = [
+                        new THREE.BoxGeometry(2, 2, 2),
+                        new THREE.SphereGeometry(1, 32, 16),
+                        new THREE.ConeGeometry(1, 2, 32),
+                        new THREE.TorusGeometry(1, 0.4, 16, 32),
+                        new THREE.TetrahedronGeometry(1.2),
+                        new THREE.OctahedronGeometry(1.2),
+                        new THREE.DodecahedronGeometry(1.2),
+                        new THREE.CylinderGeometry(0.8, 0.8, 2, 32)
+                    ];
+                    
+                    const geometry = geometryTypes[geometryIndex];
+                    const color = new THREE.Color().setHSL(Math.random(), 0.7, 0.5);
+                    
+                    const material = new THREE.MeshStandardMaterial({
+                        color: color,
+                        roughness: 0.5 + Math.random() * 0.5,
+                        metalness: Math.random() * 0.5
+                    });
+                    
+                    const mesh = new THREE.Mesh(geometry, material);
+                    
+                    // 设置位置
+                    const radius = 8 + Math.random() * 8;
+                    const angle = Math.random() * Math.PI * 2;
+                    
+                    mesh.position.x = Math.cos(angle) * radius;
+                    mesh.position.z = Math.sin(angle) * radius;
+                    mesh.position.y = 1 + Math.random() * 3;
+                    
+                    // 随机旋转
+                    mesh.rotation.x = Math.random() * Math.PI;
+                    mesh.rotation.y = Math.random() * Math.PI;
+                    mesh.rotation.z = Math.random() * Math.PI;
+                    
+                    // 设置阴影
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                    
+                    // 添加ID和名称
+                    mesh.userData.id = nextObjectId++;
+                    mesh.name = `对象${mesh.userData.id}`;
+                    
+                    // 添加一些随机属性以供显示
+                    mesh.userData.type = getGeometryName(geometryIndex);
+                    mesh.userData.mass = (1 + Math.random() * 10).toFixed(2);
+                    mesh.userData.material = Math.random() > 0.5 ? "金属" : "塑料";
+                    mesh.userData.created = new Date().toLocaleString();
+                    
+                    // 添加到组中
+                    objectsGroup.add(mesh);
+                    
+                    // 如果需要显示标签，为对象添加标签
+                    if (pickSettings.showLabels) {
+                        addLabelToObject(mesh);
+                    }
+                }
+            }
+            
+            // 显示加载反馈
+            showLoadingBar(100);
+            setTimeout(() => hideLoadingBar(), 500);
+        }
+
+        // 重置所有对象
+        function resetObjects() {
+            // 移除现有对象组
+            const existingGroup = scene.getObjectByName("可拾取对象组");
+            if (existingGroup) {
+                scene.remove(existingGroup);
+            }
+            
+            // 重置选中状态
+            selectedObject = null;
+            previousColor = null;
+            
+            // 解除变换控制器
+            transformControls.detach();
+            
+            // 隐藏对象信息面板
+            document.getElementById('object-details').style.display = 'none';
+            
+            // 清空轮廓通道
+            outlinePass.selectedObjects = [];
+            
+            // 创建新对象
+            createPickableObjects(20);
+            
+            // 显示加载反馈
+            showLoadingBar(100);
+            setTimeout(() => hideLoadingBar(), 500);
+        }
+
+        // 切换对象标签
+        function toggleObjectLabels() {
+            pickSettings.showLabels = !pickSettings.showLabels;
+            
+            const objectsGroup = scene.getObjectByName("可拾取对象组");
+            if (!objectsGroup) return;
+            
+            if (pickSettings.showLabels) {
+                // 为所有对象添加标签
+                objectsGroup.children.forEach(obj => {
+                    if (!obj.userData.label) {
+                        addLabelToObject(obj);
+                    }
+                });
+            } else {
+                // 移除所有对象的标签
+                objectsGroup.children.forEach(obj => {
+                    if (obj.userData.label) {
+                        obj.remove(obj.userData.label);
+                        obj.userData.label = null;
+                    }
+                });
+            }
+        }
+
+        // 切换轮廓显示
+        function toggleOutlines() {
+            pickSettings.showOutlines = !pickSettings.showOutlines;
+            
+            if (!pickSettings.showOutlines) {
+                outlinePass.selectedObjects = [];
+            } else if (selectedObject) {
+                outlinePass.selectedObjects = [selectedObject];
+            }
+        }
+
+        // 切换交互模式
+        function toggleInteractionMode() {
+            pickSettings.interactionMode = pickSettings.interactionMode === 'click' ? 'hover' : 'click';
+            
+            const button = document.getElementById('toggle-interaction-mode');
+            button.textContent = pickSettings.interactionMode === 'click' ? 
+                '当前: 点击选择 (切换为悬停)' : '当前: 悬停选择 (切换为点击)';
+        }
+
+        // 切换辅助工具显示
+        function toggleHelpers() {
+            const visible = !gridHelper.visible;
+            gridHelper.visible = visible;
+            axesHelper.visible = visible;
+        }
+
+        // 更新工具提示位置
+        function updateTooltipPosition(event) {
+            const tooltip = document.getElementById('tooltip');
+            if (tooltip.style.display === 'block') {
+                tooltip.style.left = (event.clientX + 10) + 'px';
+                tooltip.style.top = (event.clientY + 10) + 'px';
+            }
+        }
+
+        // 显示工具提示
+        function showTooltip(object) {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.textContent = `${object.name} (${object.userData.type})`;
+            tooltip.style.display = 'block';
+        }
+
+        // 隐藏工具提示
+        function hideTooltip() {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.style.display = 'none';
+        }
+
+        // 显示加载条
+        function showLoadingBar(percent) {
+            const loadingBar = document.getElementById('loading-bar');
+            loadingBar.style.width = percent + '%';
+            loadingBar.style.display = 'block';
+        }
+
+        // 隐藏加载条
+        function hideLoadingBar() {
+            const loadingBar = document.getElementById('loading-bar');
+            loadingBar.style.width = '0%';
+        }
+
+        // 事件监听器
+        document.getElementById('pick-method').addEventListener('change', (e) => {
+            pickSettings.method = e.target.value;
+        });
+
+        document.getElementById('pick-action').addEventListener('change', (e) => {
+            pickSettings.action = e.target.value;
+            
+            // 如果之前选中了对象，取消选择
+            if (selectedObject) {
+                if (previousColor) {
+                    selectedObject.material.color.copy(previousColor);
+                    previousColor = null;
+                }
+                
+                transformControls.detach();
+                document.getElementById('object-details').style.display = 'none';
+                
+                if (pickSettings.showOutlines) {
+                    outlinePass.selectedObjects = [];
+                }
+                
+                selectedObject = null;
+                hideTooltip();
+            }
+        });
+
+        document.getElementById('toggle-interaction-mode').addEventListener('click', toggleInteractionMode);
+        document.getElementById('toggle-outlines').addEventListener('click', toggleOutlines);
+        document.getElementById('toggle-labels').addEventListener('click', toggleObjectLabels);
+        document.getElementById('add-objects').addEventListener('click', addRandomObjects);
+        document.getElementById('reset-objects').addEventListener('click', resetObjects);
+        document.getElementById('toggle-helpers').addEventListener('click', toggleHelpers);
+
+        // 初始化UI状态
+        document.getElementById('toggle-interaction-mode').textContent = '当前: 点击选择 (切换为悬停)';
+
+        // 窗口事件监听
+        window.addEventListener('resize', handleResize);
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('click', handleMouseClick);
+
+        // 创建场景内容
+        createSceneObjects();
+
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 更新控制器
+            controls.update();
+            
+            // 使用后期处理渲染
+            composer.render();
+            
+            // 渲染标签
+            labelRenderer.render(scene, camera);
+        }
+        
+        animate();
+    </script>
+</body>
+</html>

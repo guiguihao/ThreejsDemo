@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>15_GSAP动画集成</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 350px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            width: 280px;
+            font-size: 12px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 2px;
+            font-size: 11px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.active {
+            background: #ff6b6b;
+        }
+        .animation-controls {
+            background: rgba(255,255,255,0.1);
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+        .timeline-info {
+            background: rgba(255,255,0,0.1);
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 11px;
+            border: 1px solid rgba(255,255,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>GSAP动画系统集成</h3>
+        <p>本示例展示了GSAP与Three.js的完美结合：</p>
+        <ul>
+            <li><strong>Timeline</strong> - 时间轴动画序列</li>
+            <li><strong>Tween</strong> - 补间动画</li>
+            <li><strong>Easing</strong> - 缓动函数</li>
+            <li><strong>ScrollTrigger</strong> - 滚动触发</li>
+            <li><strong>MorphSVG</strong> - 形状变换</li>
+        </ul>
+        <p><strong>GSAP优势：</strong></p>
+        <p>• 高性能动画引擎</p>
+        <p>• 丰富的缓动选项</p>
+        <p>• 强大的时间轴控制</p>
+        <p>• 完美的浏览器兼容性</p>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>动画预设</label>
+            <button id="animBasic" class="active">基础动画</button>
+            <button id="animTimeline">时间轴</button>
+            <button id="animComplex">复杂序列</button>
+            <button id="animMorph">形变动画</button>
+        </div>
+
+        <div class="control-group">
+            <label>动画速度: <span class="value" id="speedValue">1.0</span></label>
+            <input type="range" id="animSpeed" min="0.1" max="3" value="1" step="0.1">
+        </div>
+
+        <div class="control-group">
+            <label>缓动类型</label>
+            <button id="easeLinear">Linear</button>
+            <button id="easePower2" class="active">Power2</button>
+            <button id="easeElastic">Elastic</button>
+            <button id="easeBounce">Bounce</button>
+        </div>
+
+        <div class="animation-controls">
+            <div class="control-group">
+                <button id="playAnim">播放动画</button>
+                <button id="pauseAnim">暂停</button>
+                <button id="reverseAnim">反向播放</button>
+                <button id="restartAnim">重新开始</button>
+            </div>
+            
+            <div class="control-group">
+                <label>播放位置: <span class="value" id="progressValue">0%</span></label>
+                <input type="range" id="progress" min="0" max="1" value="0" step="0.01">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>对象控制</label>
+            <button id="addObject">添加对象</button>
+            <button id="removeObject">移除对象</button>
+            <button id="animateAll">动画所有</button>
+            <button id="resetScene">重置场景</button>
+        </div>
+
+        <div class="timeline-info" id="timelineInfo">
+            <strong>时间轴状态：</strong><br>
+            进度：<span class="value">0%</span><br>
+            方向：<span class="value">正向</span><br>
+            状态：<span class="value">停止</span>
+        </div>
+    </div>
+
+    <!-- 引入GSAP库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 基本设置
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x001122);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // 控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // 动画变量
+        let objects = [];
+        let currentTimeline = null;
+        let animationType = 'basic';
+        let currentEase = 'power2.inOut';
+        let animationSpeed = 1.0;
+
+        // 材质集合
+        const materials = [
+            new THREE.MeshStandardMaterial({ color: 0xff6b6b }),
+            new THREE.MeshStandardMaterial({ color: 0x4ecdc4 }),
+            new THREE.MeshStandardMaterial({ color: 0xffe66d }),
+            new THREE.MeshStandardMaterial({ color: 0xa8e6cf }),
+            new THREE.MeshStandardMaterial({ color: 0xdcedc8 }),
+            new THREE.MeshStandardMaterial({ color: 0xf8bbd9 })
+        ];
+
+        // 初始化场景
+        function initScene() {
+            // 添加光照
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(10, 10, 5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+
+            // 添加地面
+            const groundGeometry = new THREE.PlaneGeometry(20, 20);
+            const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // 创建初始对象
+            createInitialObjects();
+
+            // 设置相机位置
+            camera.position.set(8, 6, 8);
+            controls.target.set(0, 0, 0);
+        }
+
+        function createInitialObjects() {
+            const geometries = [
+                new THREE.BoxGeometry(1, 1, 1),
+                new THREE.SphereGeometry(0.6, 32, 32),
+                new THREE.ConeGeometry(0.6, 1.2, 8),
+                new THREE.CylinderGeometry(0.5, 0.5, 1, 16),
+                new THREE.TorusGeometry(0.5, 0.2, 16, 100)
+            ];
+
+            for (let i = 0; i < 5; i++) {
+                const geometry = geometries[i];
+                const material = materials[i].clone();
+                const mesh = new THREE.Mesh(geometry, material);
+                
+                // 初始位置（圆形排列）
+                const angle = (i / 5) * Math.PI * 2;
+                mesh.position.x = Math.cos(angle) * 3;
+                mesh.position.z = Math.sin(angle) * 3;
+                mesh.position.y = 0.5;
+                
+                mesh.castShadow = true;
+                mesh.userData = {
+                    id: i,
+                    originalPosition: mesh.position.clone(),
+                    originalRotation: mesh.rotation.clone(),
+                    originalScale: mesh.scale.clone()
+                };
+                
+                scene.add(mesh);
+                objects.push(mesh);
+            }
+        }
+
+        function addObject() {
+            const geometries = [
+                new THREE.OctahedronGeometry(0.7),
+                new THREE.DodecahedronGeometry(0.6),
+                new THREE.IcosahedronGeometry(0.6),
+                new THREE.TetrahedronGeometry(0.8)
+            ];
+            
+            const geometry = geometries[Math.floor(Math.random() * geometries.length)];
+            const material = materials[Math.floor(Math.random() * materials.length)].clone();
+            const mesh = new THREE.Mesh(geometry, material);
+            
+            // 随机位置
+            mesh.position.set(
+                (Math.random() - 0.5) * 8,
+                0.5 + Math.random() * 3,
+                (Math.random() - 0.5) * 8
+            );
+            
+            mesh.castShadow = true;
+            mesh.userData = {
+                id: objects.length,
+                originalPosition: mesh.position.clone(),
+                originalRotation: mesh.rotation.clone(),
+                originalScale: mesh.scale.clone()
+            };
+            
+            scene.add(mesh);
+            objects.push(mesh);
+            
+            // 添加入场动画
+            gsap.from(mesh.scale, {
+                x: 0, y: 0, z: 0,
+                duration: 0.6,
+                ease: currentEase
+            });
+            
+            gsap.from(mesh.rotation, {
+                y: Math.PI * 2,
+                duration: 1,
+                ease: currentEase
+            });
+        }
+
+        function removeObject() {
+            if (objects.length === 0) return;
+            
+            const mesh = objects.pop();
+            
+            // 退场动画
+            gsap.to(mesh.scale, {
+                x: 0, y: 0, z: 0,
+                duration: 0.4,
+                ease: currentEase,
+                onComplete: () => {
+                    scene.remove(mesh);
+                    mesh.geometry.dispose();
+                    mesh.material.dispose();
+                }
+            });
+        }
+
+        function createBasicAnimation() {
+            if (currentTimeline) currentTimeline.kill();
+            
+            currentTimeline = gsap.timeline({ 
+                paused: true,
+                timeScale: animationSpeed
+            });
+            
+            objects.forEach((obj, index) => {
+                currentTimeline.to(obj.position, {
+                    y: obj.position.y + 2,
+                    duration: 1,
+                    ease: currentEase,
+                    delay: index * 0.1
+                }, 0);
+                
+                currentTimeline.to(obj.rotation, {
+                    y: Math.PI * 2,
+                    duration: 2,
+                    ease: currentEase
+                }, 0);
+            });
+            
+            return currentTimeline;
+        }
+
+        function createTimelineAnimation() {
+            if (currentTimeline) currentTimeline.kill();
+            
+            currentTimeline = gsap.timeline({ 
+                paused: true,
+                timeScale: animationSpeed,
+                repeat: -1,
+                yoyo: true
+            });
+            
+            objects.forEach((obj, index) => {
+                // 阶段1：上升
+                currentTimeline.to(obj.position, {
+                    y: obj.userData.originalPosition.y + 3,
+                    duration: 0.8,
+                    ease: currentEase
+                }, index * 0.2);
+                
+                // 阶段2：旋转
+                currentTimeline.to(obj.rotation, {
+                    x: Math.PI,
+                    z: Math.PI,
+                    duration: 0.6,
+                    ease: currentEase
+                }, index * 0.2 + 0.4);
+                
+                // 阶段3：缩放
+                currentTimeline.to(obj.scale, {
+                    x: 1.5, y: 1.5, z: 1.5,
+                    duration: 0.4,
+                    ease: currentEase
+                }, index * 0.2 + 1.0);
+            });
+            
+            return currentTimeline;
+        }
+
+        function createComplexSequence() {
+            if (currentTimeline) currentTimeline.kill();
+            
+            currentTimeline = gsap.timeline({ 
+                paused: true,
+                timeScale: animationSpeed
+            });
+            
+            // 第一阶段：聚集到中心
+            currentTimeline.to(objects.map(obj => obj.position), {
+                x: 0, z: 0, y: 2,
+                duration: 1.5,
+                ease: currentEase,
+                stagger: 0.1
+            });
+            
+            // 第二阶段：螺旋展开
+            objects.forEach((obj, index) => {
+                const angle = (index / objects.length) * Math.PI * 2;
+                const radius = 4;
+                
+                currentTimeline.to(obj.position, {
+                    x: Math.cos(angle) * radius,
+                    z: Math.sin(angle) * radius,
+                    y: Math.sin(angle * 3) * 2 + 2,
+                    duration: 2,
+                    ease: currentEase
+                }, 1.5);
+            });
+            
+            // 第三阶段：颜色变化
+            currentTimeline.to(objects.map(obj => obj.material.color), {
+                r: 1, g: 0, b: 1,
+                duration: 1,
+                ease: currentEase,
+                stagger: 0.05
+            }, 2.5);
+            
+            // 第四阶段：返回原位
+            objects.forEach((obj, index) => {
+                currentTimeline.to(obj.position, {
+                    x: obj.userData.originalPosition.x,
+                    y: obj.userData.originalPosition.y,
+                    z: obj.userData.originalPosition.z,
+                    duration: 1.5,
+                    ease: currentEase
+                }, 4);
+                
+                currentTimeline.to(obj.material.color, {
+                    r: materials[index % materials.length].color.r,
+                    g: materials[index % materials.length].color.g,
+                    b: materials[index % materials.length].color.b,
+                    duration: 1,
+                    ease: currentEase
+                }, 4.5);
+            });
+            
+            return currentTimeline;
+        }
+
+        function createMorphAnimation() {
+            if (currentTimeline) currentTimeline.kill();
+            
+            currentTimeline = gsap.timeline({ 
+                paused: true,
+                timeScale: animationSpeed,
+                repeat: -1,
+                yoyo: true
+            });
+            
+            objects.forEach((obj, index) => {
+                // 变形动画
+                currentTimeline.to(obj.scale, {
+                    x: () => 0.5 + Math.random(),
+                    y: () => 0.5 + Math.random() * 2,
+                    z: () => 0.5 + Math.random(),
+                    duration: 2,
+                    ease: currentEase,
+                    stagger: 0.1
+                });
+                
+                // 位置变形
+                currentTimeline.to(obj.position, {
+                    x: () => (Math.random() - 0.5) * 6,
+                    y: () => Math.random() * 4 + 0.5,
+                    z: () => (Math.random() - 0.5) * 6,
+                    duration: 3,
+                    ease: currentEase
+                }, 0);
+                
+                // 旋转变形
+                currentTimeline.to(obj.rotation, {
+                    x: () => Math.random() * Math.PI * 2,
+                    y: () => Math.random() * Math.PI * 2,
+                    z: () => Math.random() * Math.PI * 2,
+                    duration: 2.5,
+                    ease: currentEase
+                }, 0.5);
+            });
+            
+            return currentTimeline;
+        }
+
+        function createAnimation() {
+            switch (animationType) {
+                case 'basic':
+                    return createBasicAnimation();
+                case 'timeline':
+                    return createTimelineAnimation();
+                case 'complex':
+                    return createComplexSequence();
+                case 'morph':
+                    return createMorphAnimation();
+                default:
+                    return createBasicAnimation();
+            }
+        }
+
+        function resetScene() {
+            if (currentTimeline) {
+                currentTimeline.kill();
+            }
+            
+            objects.forEach((obj, index) => {
+                obj.position.copy(obj.userData.originalPosition);
+                obj.rotation.copy(obj.userData.originalRotation);
+                obj.scale.copy(obj.userData.originalScale);
+                obj.material.color.copy(materials[index % materials.length].color);
+            });
+            
+            updateTimelineInfo();
+        }
+
+        function updateTimelineInfo() {
+            const info = document.getElementById('timelineInfo');
+            if (currentTimeline) {
+                const progress = (currentTimeline.progress() * 100).toFixed(1);
+                const direction = currentTimeline.reversed() ? '反向' : '正向';
+                const state = currentTimeline.paused() ? '暂停' : '播放';
+                
+                info.innerHTML = `
+                    <strong>时间轴状态：</strong><br>
+                    进度：<span class="value">${progress}%</span><br>
+                    方向：<span class="value">${direction}</span><br>
+                    状态：<span class="value">${state}</span>
+                `;
+                
+                // 更新进度条
+                document.getElementById('progress').value = currentTimeline.progress();
+                document.getElementById('progressValue').textContent = `${progress}%`;
+            }
+        }
+
+        // 事件监听
+        document.getElementById('animSpeed').addEventListener('input', (e) => {
+            animationSpeed = parseFloat(e.target.value);
+            document.getElementById('speedValue').textContent = animationSpeed.toFixed(1);
+            if (currentTimeline) {
+                currentTimeline.timeScale(animationSpeed);
+            }
+        });
+
+        document.getElementById('progress').addEventListener('input', (e) => {
+            if (currentTimeline) {
+                currentTimeline.progress(parseFloat(e.target.value));
+                updateTimelineInfo();
+            }
+        });
+
+        // 动画类型按钮
+        document.getElementById('animBasic').addEventListener('click', () => {
+            animationType = 'basic';
+            document.querySelectorAll('[id^="anim"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('animBasic').classList.add('active');
+            createAnimation();
+        });
+
+        document.getElementById('animTimeline').addEventListener('click', () => {
+            animationType = 'timeline';
+            document.querySelectorAll('[id^="anim"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('animTimeline').classList.add('active');
+            createAnimation();
+        });
+
+        document.getElementById('animComplex').addEventListener('click', () => {
+            animationType = 'complex';
+            document.querySelectorAll('[id^="anim"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('animComplex').classList.add('active');
+            createAnimation();
+        });
+
+        document.getElementById('animMorph').addEventListener('click', () => {
+            animationType = 'morph';
+            document.querySelectorAll('[id^="anim"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('animMorph').classList.add('active');
+            createAnimation();
+        });
+
+        // 缓动类型按钮
+        document.getElementById('easeLinear').addEventListener('click', () => {
+            currentEase = 'none';
+            document.querySelectorAll('[id^="ease"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('easeLinear').classList.add('active');
+        });
+
+        document.getElementById('easePower2').addEventListener('click', () => {
+            currentEase = 'power2.inOut';
+            document.querySelectorAll('[id^="ease"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('easePower2').classList.add('active');
+        });
+
+        document.getElementById('easeElastic').addEventListener('click', () => {
+            currentEase = 'elastic.out';
+            document.querySelectorAll('[id^="ease"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('easeElastic').classList.add('active');
+        });
+
+        document.getElementById('easeBounce').addEventListener('click', () => {
+            currentEase = 'bounce.out';
+            document.querySelectorAll('[id^="ease"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('easeBounce').classList.add('active');
+        });
+
+        // 播放控制按钮
+        document.getElementById('playAnim').addEventListener('click', () => {
+            if (!currentTimeline) createAnimation();
+            currentTimeline.play();
+        });
+
+        document.getElementById('pauseAnim').addEventListener('click', () => {
+            if (currentTimeline) currentTimeline.pause();
+        });
+
+        document.getElementById('reverseAnim').addEventListener('click', () => {
+            if (currentTimeline) currentTimeline.reverse();
+        });
+
+        document.getElementById('restartAnim').addEventListener('click', () => {
+            if (currentTimeline) currentTimeline.restart();
+        });
+
+        // 对象控制按钮
+        document.getElementById('addObject').addEventListener('click', addObject);
+        document.getElementById('removeObject').addEventListener('click', removeObject);
+        
+        document.getElementById('animateAll').addEventListener('click', () => {
+            // 随机动画所有对象
+            objects.forEach((obj, index) => {
+                gsap.to(obj.position, {
+                    y: obj.position.y + Math.random() * 3,
+                    duration: 1 + Math.random(),
+                    ease: currentEase,
+                    yoyo: true,
+                    repeat: 1,
+                    delay: index * 0.1
+                });
+            });
+        });
+
+        document.getElementById('resetScene').addEventListener('click', resetScene);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 定期更新时间轴信息
+            if (currentTimeline && Date.now() % 10 === 0) {
+                updateTimelineInfo();
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // 初始化
+        initScene();
+        createAnimation();
+        animate();
+    </script>
+</body>
+</html>

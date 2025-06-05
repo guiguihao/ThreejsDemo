@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>14_着色器入门</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 350px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            width: 300px;
+            font-size: 12px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 2px;
+            font-size: 11px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.active {
+            background: #ff6b6b;
+        }
+        .value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+        .shader-code {
+            background: rgba(0,0,0,0.6);
+            color: #00ff88;
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 9px;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .uniform-controls {
+            background: rgba(255,255,255,0.1);
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>着色器编程入门</h3>
+        <p>本示例展示了Three.js中的着色器基础：</p>
+        <ul>
+            <li><strong>顶点着色器</strong> - 处理顶点变换</li>
+            <li><strong>片段着色器</strong> - 处理像素颜色</li>
+            <li><strong>Uniform变量</strong> - 着色器参数</li>
+            <li><strong>Varying变量</strong> - 顶点到片段数据传递</li>
+            <li><strong>内置变量</strong> - position、uv、normal等</li>
+        </ul>
+        <p><strong>GLSL基础：</strong></p>
+        <p>• vec3: 三维向量 (xyz)</p>
+        <p>• vec4: 四维向量 (xyzw)</p>
+        <p>• uniform: 外部传入的常量</p>
+        <p>• varying: 顶点到片段的插值</p>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>着色器示例</label>
+            <button id="shaderBasic" class="active">基础颜色</button>
+            <button id="shaderGradient">渐变</button>
+            <button id="shaderWave">波浪</button>
+            <button id="shaderNoise">噪声</button>
+        </div>
+
+        <div class="uniform-controls">
+            <div class="control-group">
+                <label>时间缩放: <span class="value" id="timeScaleValue">1.0</span></label>
+                <input type="range" id="timeScale" min="0" max="3" value="1" step="0.1">
+            </div>
+
+            <div class="control-group">
+                <label>颜色强度: <span class="value" id="colorIntensityValue">1.0</span></label>
+                <input type="range" id="colorIntensity" min="0" max="2" value="1" step="0.1">
+            </div>
+
+            <div class="control-group">
+                <label>波浪频率: <span class="value" id="frequencyValue">5.0</span></label>
+                <input type="range" id="frequency" min="1" max="20" value="5" step="0.5">
+            </div>
+
+            <div class="control-group">
+                <label>波浪幅度: <span class="value" id="amplitudeValue">0.2</span></label>
+                <input type="range" id="amplitude" min="0" max="1" value="0.2" step="0.05">
+            </div>
+
+            <div class="control-group">
+                <label>噪声缩放: <span class="value" id="noiseScaleValue">10.0</span></label>
+                <input type="range" id="noiseScale" min="1" max="50" value="10" step="1">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <button id="pauseTime">暂停时间</button>
+            <button id="resetUniforms">重置参数</button>
+            <button id="randomColors">随机颜色</button>
+        </div>
+
+        <div class="shader-code" id="shaderCode">
+            // 着色器代码将在这里显示
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 基本设置
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x000011);
+        document.body.appendChild(renderer.domElement);
+
+        // 控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // 着色器变量
+        let currentMesh = null;
+        let shaderMaterial = null;
+        let shaderType = 'basic';
+        let timeRunning = true;
+
+        // Uniform变量
+        const uniforms = {
+            uTime: { value: 0.0 },
+            uTimeScale: { value: 1.0 },
+            uColorIntensity: { value: 1.0 },
+            uFrequency: { value: 5.0 },
+            uAmplitude: { value: 0.2 },
+            uNoiseScale: { value: 10.0 },
+            uColor1: { value: new THREE.Color(0xff0055) },
+            uColor2: { value: new THREE.Color(0x0055ff) },
+            uColor3: { value: new THREE.Color(0x55ff00) }
+        };
+
+        // 着色器代码
+        const shaders = {
+            basic: {
+                vertex: `
+                    varying vec2 vUv;
+                    varying vec3 vPosition;
+                    
+                    void main() {
+                        vUv = uv;
+                        vPosition = position;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragment: `
+                    uniform float uTime;
+                    uniform float uColorIntensity;
+                    uniform vec3 uColor1;
+                    varying vec2 vUv;
+                    
+                    void main() {
+                        vec3 color = uColor1 * uColorIntensity;
+                        gl_FragColor = vec4(color, 1.0);
+                    }
+                `
+            },
+            gradient: {
+                vertex: `
+                    varying vec2 vUv;
+                    varying vec3 vPosition;
+                    
+                    void main() {
+                        vUv = uv;
+                        vPosition = position;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragment: `
+                    uniform float uTime;
+                    uniform float uColorIntensity;
+                    uniform vec3 uColor1;
+                    uniform vec3 uColor2;
+                    varying vec2 vUv;
+                    
+                    void main() {
+                        vec3 color = mix(uColor1, uColor2, vUv.x) * uColorIntensity;
+                        gl_FragColor = vec4(color, 1.0);
+                    }
+                `
+            },
+            wave: {
+                vertex: `
+                    uniform float uTime;
+                    uniform float uTimeScale;
+                    uniform float uFrequency;
+                    uniform float uAmplitude;
+                    varying vec2 vUv;
+                    varying vec3 vPosition;
+                    varying float vElevation;
+                    
+                    void main() {
+                        vUv = uv;
+                        vPosition = position;
+                        
+                        float elevation = sin(position.x * uFrequency + uTime * uTimeScale) * 
+                                         sin(position.z * uFrequency + uTime * uTimeScale) * uAmplitude;
+                        
+                        vElevation = elevation;
+                        
+                        vec3 newPosition = position;
+                        newPosition.y += elevation;
+                        
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+                    }
+                `,
+                fragment: `
+                    uniform float uTime;
+                    uniform float uColorIntensity;
+                    uniform vec3 uColor1;
+                    uniform vec3 uColor2;
+                    uniform vec3 uColor3;
+                    varying vec2 vUv;
+                    varying float vElevation;
+                    
+                    void main() {
+                        float mixStrength = (vElevation + 0.25) * 2.0;
+                        vec3 color = mix(uColor1, uColor2, mixStrength);
+                        color = mix(color, uColor3, vUv.y);
+                        color *= uColorIntensity;
+                        
+                        gl_FragColor = vec4(color, 1.0);
+                    }
+                `
+            },
+            noise: {
+                vertex: `
+                    varying vec2 vUv;
+                    varying vec3 vPosition;
+                    
+                    void main() {
+                        vUv = uv;
+                        vPosition = position;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragment: `
+                    uniform float uTime;
+                    uniform float uTimeScale;
+                    uniform float uColorIntensity;
+                    uniform float uNoiseScale;
+                    uniform vec3 uColor1;
+                    uniform vec3 uColor2;
+                    uniform vec3 uColor3;
+                    varying vec2 vUv;
+                    
+                    // 简单噪声函数
+                    float random(vec2 st) {
+                        return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+                    }
+                    
+                    float noise(vec2 st) {
+                        vec2 i = floor(st);
+                        vec2 f = fract(st);
+                        
+                        float a = random(i);
+                        float b = random(i + vec2(1.0, 0.0));
+                        float c = random(i + vec2(0.0, 1.0));
+                        float d = random(i + vec2(1.0, 1.0));
+                        
+                        vec2 u = f * f * (3.0 - 2.0 * f);
+                        
+                        return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+                    }
+                    
+                    void main() {
+                        vec2 st = vUv * uNoiseScale;
+                        st += uTime * uTimeScale * 0.5;
+                        
+                        float n = noise(st);
+                        
+                        vec3 color = mix(uColor1, uColor2, n);
+                        color = mix(color, uColor3, noise(st * 2.0));
+                        color *= uColorIntensity;
+                        
+                        gl_FragColor = vec4(color, 1.0);
+                    }
+                `
+            }
+        };
+
+        // 初始化场景
+        function initScene() {
+            // 添加光照
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            directionalLight.position.set(5, 5, 5);
+            scene.add(directionalLight);
+
+            // 创建几何体
+            const geometry = new THREE.PlaneGeometry(4, 4, 32, 32);
+            
+            // 创建着色器材质
+            createShaderMaterial();
+
+            // 创建网格
+            currentMesh = new THREE.Mesh(geometry, shaderMaterial);
+            scene.add(currentMesh);
+
+            // 设置相机位置
+            camera.position.set(0, 0, 5);
+            controls.target.set(0, 0, 0);
+        }
+
+        function createShaderMaterial() {
+            const shader = shaders[shaderType];
+            
+            shaderMaterial = new THREE.ShaderMaterial({
+                uniforms: uniforms,
+                vertexShader: shader.vertex,
+                fragmentShader: shader.fragment,
+                side: THREE.DoubleSide
+            });
+            
+            updateShaderCode();
+        }
+
+        function updateShaderMaterial() {
+            if (!currentMesh) return;
+            
+            const shader = shaders[shaderType];
+            
+            shaderMaterial.vertexShader = shader.vertex;
+            shaderMaterial.fragmentShader = shader.fragment;
+            shaderMaterial.needsUpdate = true;
+            
+            updateShaderCode();
+        }
+
+        function updateShaderCode() {
+            const shader = shaders[shaderType];
+            const codeDisplay = document.getElementById('shaderCode');
+            
+            codeDisplay.textContent = `// 顶点着色器
+${shader.vertex}
+
+// 片段着色器
+${shader.fragment}`;
+        }
+
+        function randomizeColors() {
+            uniforms.uColor1.value.setHSL(Math.random(), 0.8, 0.6);
+            uniforms.uColor2.value.setHSL(Math.random(), 0.8, 0.6);
+            uniforms.uColor3.value.setHSL(Math.random(), 0.8, 0.6);
+        }
+
+        function resetUniforms() {
+            uniforms.uTimeScale.value = 1.0;
+            uniforms.uColorIntensity.value = 1.0;
+            uniforms.uFrequency.value = 5.0;
+            uniforms.uAmplitude.value = 0.2;
+            uniforms.uNoiseScale.value = 10.0;
+            
+            // 更新UI
+            document.getElementById('timeScale').value = 1.0;
+            document.getElementById('colorIntensity').value = 1.0;
+            document.getElementById('frequency').value = 5.0;
+            document.getElementById('amplitude').value = 0.2;
+            document.getElementById('noiseScale').value = 10.0;
+            
+            updateControlValues();
+        }
+
+        function updateControlValues() {
+            document.getElementById('timeScaleValue').textContent = uniforms.uTimeScale.value.toFixed(1);
+            document.getElementById('colorIntensityValue').textContent = uniforms.uColorIntensity.value.toFixed(1);
+            document.getElementById('frequencyValue').textContent = uniforms.uFrequency.value.toFixed(1);
+            document.getElementById('amplitudeValue').textContent = uniforms.uAmplitude.value.toFixed(2);
+            document.getElementById('noiseScaleValue').textContent = uniforms.uNoiseScale.value.toFixed(1);
+        }
+
+        // 事件监听
+        document.getElementById('timeScale').addEventListener('input', (e) => {
+            uniforms.uTimeScale.value = parseFloat(e.target.value);
+            document.getElementById('timeScaleValue').textContent = uniforms.uTimeScale.value.toFixed(1);
+        });
+
+        document.getElementById('colorIntensity').addEventListener('input', (e) => {
+            uniforms.uColorIntensity.value = parseFloat(e.target.value);
+            document.getElementById('colorIntensityValue').textContent = uniforms.uColorIntensity.value.toFixed(1);
+        });
+
+        document.getElementById('frequency').addEventListener('input', (e) => {
+            uniforms.uFrequency.value = parseFloat(e.target.value);
+            document.getElementById('frequencyValue').textContent = uniforms.uFrequency.value.toFixed(1);
+        });
+
+        document.getElementById('amplitude').addEventListener('input', (e) => {
+            uniforms.uAmplitude.value = parseFloat(e.target.value);
+            document.getElementById('amplitudeValue').textContent = uniforms.uAmplitude.value.toFixed(2);
+        });
+
+        document.getElementById('noiseScale').addEventListener('input', (e) => {
+            uniforms.uNoiseScale.value = parseFloat(e.target.value);
+            document.getElementById('noiseScaleValue').textContent = uniforms.uNoiseScale.value.toFixed(1);
+        });
+
+        // 着色器类型按钮
+        document.getElementById('shaderBasic').addEventListener('click', () => {
+            shaderType = 'basic';
+            document.querySelectorAll('[id^="shader"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('shaderBasic').classList.add('active');
+            updateShaderMaterial();
+        });
+
+        document.getElementById('shaderGradient').addEventListener('click', () => {
+            shaderType = 'gradient';
+            document.querySelectorAll('[id^="shader"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('shaderGradient').classList.add('active');
+            updateShaderMaterial();
+        });
+
+        document.getElementById('shaderWave').addEventListener('click', () => {
+            shaderType = 'wave';
+            document.querySelectorAll('[id^="shader"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('shaderWave').classList.add('active');
+            updateShaderMaterial();
+        });
+
+        document.getElementById('shaderNoise').addEventListener('click', () => {
+            shaderType = 'noise';
+            document.querySelectorAll('[id^="shader"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('shaderNoise').classList.add('active');
+            updateShaderMaterial();
+        });
+
+        // 其他控制按钮
+        document.getElementById('pauseTime').addEventListener('click', () => {
+            timeRunning = !timeRunning;
+            const btn = document.getElementById('pauseTime');
+            btn.textContent = timeRunning ? '暂停时间' : '恢复时间';
+            btn.classList.toggle('active', !timeRunning);
+        });
+
+        document.getElementById('resetUniforms').addEventListener('click', resetUniforms);
+        document.getElementById('randomColors').addEventListener('click', randomizeColors);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 更新时间
+            if (timeRunning) {
+                uniforms.uTime.value += 0.016; // 约60fps
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // 初始化
+        initScene();
+        updateControlValues();
+        animate();
+    </script>
+</body>
+</html>

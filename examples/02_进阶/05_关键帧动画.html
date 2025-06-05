@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>05_关键帧动画</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 15px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            border-radius: 5px;
+            max-width: 380px;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+        }
+        .animation-controls {
+            margin-bottom: 10px;
+        }
+        .animation-controls button {
+            margin: 2px;
+            padding: 5px 10px;
+            background: #4ecdc4;
+            border: none;
+            color: white;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>Three.js 进阶 - 关键帧动画</h3>
+        <p>这个示例展示了：</p>
+        <ul>
+            <li>关键帧动画创建</li>
+            <li>动画轨道(AnimationTrack)</li>
+            <li>动画混合器(AnimationMixer)</li>
+            <li>动画时间控制</li>
+            <li>多个动画同时播放</li>
+        </ul>
+    </div>
+
+    <div class="controls">
+        <div class="animation-controls">
+            <button id="playAll">播放所有</button>
+            <button id="pauseAll">暂停所有</button>
+            <button id="stopAll">停止所有</button>
+        </div>
+        
+        <label>动画速度: <input type="range" id="timeScale" min="0" max="3" value="1" step="0.1"></label><br>
+        <label>位置动画: <input type="checkbox" id="positionAnim" checked></label><br>
+        <label>旋转动画: <input type="checkbox" id="rotationAnim" checked></label><br>
+        <label>缩放动画: <input type="checkbox" id="scaleAnim" checked></label><br>
+        <label>颜色动画: <input type="checkbox" id="colorAnim" checked></label><br>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 创建场景
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a);
+
+        // 创建相机
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 5, 15);
+
+        // 创建渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // 添加轨道控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // 创建时钟
+        const clock = new THREE.Clock();
+        
+        // 创建动画混合器数组
+        const mixers = [];
+        const actions = {
+            position: [],
+            rotation: [],
+            scale: [],
+            color: []
+        };
+
+        // 创建多个动画对象
+        const objects = [];
+        const colors = [0xff6b6b, 0x4ecdc4, 0xffe66d, 0xa8e6cf, 0xdcedc1];
+
+        for (let i = 0; i < 5; i++) {
+            // 创建几何体和材质
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshLambertMaterial({ color: colors[i] });
+            const cube = new THREE.Mesh(geometry, material);
+            
+            // 设置初始位置
+            cube.position.x = (i - 2) * 3;
+            cube.position.y = 0;
+            
+            scene.add(cube);
+            objects.push(cube);
+
+            // 创建动画混合器
+            const mixer = new THREE.AnimationMixer(cube);
+            mixers.push(mixer);
+
+            // 创建位置动画关键帧
+            const positionKF = new THREE.VectorKeyframeTrack(
+                '.position', // 属性路径
+                [0, 2, 4], // 时间点
+                [
+                    cube.position.x, 0, 0,        // 起始位置
+                    cube.position.x, 3, 0,        // 中间位置
+                    cube.position.x, 0, 0         // 结束位置
+                ]
+            );
+
+            // 创建旋转动画关键帧
+            const rotationKF = new THREE.QuaternionKeyframeTrack(
+                '.quaternion',
+                [0, 1, 2, 3, 4],
+                [
+                    0, 0, 0, 1,                    // 0度
+                    0, 0, Math.sin(Math.PI/4), Math.cos(Math.PI/4),  // 90度
+                    0, 0, Math.sin(Math.PI/2), Math.cos(Math.PI/2),  // 180度
+                    0, 0, Math.sin(3*Math.PI/4), Math.cos(3*Math.PI/4), // 270度
+                    0, 0, 0, 1                     // 360度
+                ]
+            );
+
+            // 创建缩放动画关键帧
+            const scaleKF = new THREE.VectorKeyframeTrack(
+                '.scale',
+                [0, 1, 2, 3, 4],
+                [
+                    1, 1, 1,    // 原始大小
+                    1.5, 1.5, 1.5,  // 放大
+                    0.5, 0.5, 0.5,  // 缩小
+                    1.2, 1.2, 1.2,  // 稍微放大
+                    1, 1, 1     // 回到原始
+                ]
+            );
+
+            // 创建颜色动画关键帧
+            const colorKF = new THREE.ColorKeyframeTrack(
+                '.material.color',
+                [0, 1, 2, 3, 4],
+                [
+                    1, 0.4, 0.4,    // 红色
+                    0.4, 1, 0.8,    // 青色  
+                    1, 1, 0.4,      // 黄色
+                    0.7, 1, 0.8,    // 绿色
+                    0.9, 0.9, 0.8   // 白色
+                ]
+            );
+
+            // 创建动画剪辑
+            const positionClip = new THREE.AnimationClip('position' + i, 4, [positionKF]);
+            const rotationClip = new THREE.AnimationClip('rotation' + i, 4, [rotationKF]);
+            const scaleClip = new THREE.AnimationClip('scale' + i, 4, [scaleKF]);
+            const colorClip = new THREE.AnimationClip('color' + i, 4, [colorKF]);
+
+            // 创建动画动作
+            const positionAction = mixer.clipAction(positionClip);
+            const rotationAction = mixer.clipAction(rotationClip);
+            const scaleAction = mixer.clipAction(scaleClip);
+            const colorAction = mixer.clipAction(colorClip);
+
+            // 设置动画循环
+            positionAction.setLoop(THREE.LoopRepeat);
+            rotationAction.setLoop(THREE.LoopRepeat);
+            scaleAction.setLoop(THREE.LoopRepeat);
+            colorAction.setLoop(THREE.LoopRepeat);
+
+            // 设置不同的开始时间延迟
+            positionAction.startAt(i * 0.2);
+            rotationAction.startAt(i * 0.3);
+            scaleAction.startAt(i * 0.4);
+            colorAction.startAt(i * 0.1);
+
+            // 播放动画
+            positionAction.play();
+            rotationAction.play();
+            scaleAction.play();
+            colorAction.play();
+
+            // 存储动作以便控制
+            actions.position.push(positionAction);
+            actions.rotation.push(rotationAction);
+            actions.scale.push(scaleAction);
+            actions.color.push(colorAction);
+        }
+
+        // 添加地面
+        const groundGeometry = new THREE.PlaneGeometry(20, 20);
+        const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x404040 });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -2;
+        scene.add(ground);
+
+        // 添加光照
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        directionalLight.position.set(5, 10, 5);
+        scene.add(directionalLight);
+
+        // 动画控制函数
+        function playAllAnimations() {
+            Object.values(actions).forEach(actionArray => {
+                actionArray.forEach(action => action.play());
+            });
+        }
+
+        function pauseAllAnimations() {
+            Object.values(actions).forEach(actionArray => {
+                actionArray.forEach(action => action.paused = !action.paused);
+            });
+        }
+
+        function stopAllAnimations() {
+            Object.values(actions).forEach(actionArray => {
+                actionArray.forEach(action => action.stop());
+            });
+        }
+
+        function toggleAnimationType(type, enabled) {
+            actions[type].forEach(action => {
+                if (enabled) {
+                    action.play();
+                } else {
+                    action.stop();
+                }
+            });
+        }
+
+        // 事件监听器
+        document.getElementById('playAll').addEventListener('click', playAllAnimations);
+        document.getElementById('pauseAll').addEventListener('click', pauseAllAnimations);
+        document.getElementById('stopAll').addEventListener('click', stopAllAnimations);
+
+        document.getElementById('timeScale').addEventListener('input', (e) => {
+            const scale = parseFloat(e.target.value);
+            mixers.forEach(mixer => {
+                mixer.timeScale = scale;
+            });
+        });
+
+        document.getElementById('positionAnim').addEventListener('change', (e) => {
+            toggleAnimationType('position', e.target.checked);
+        });
+
+        document.getElementById('rotationAnim').addEventListener('change', (e) => {
+            toggleAnimationType('rotation', e.target.checked);
+        });
+
+        document.getElementById('scaleAnim').addEventListener('change', (e) => {
+            toggleAnimationType('scale', e.target.checked);
+        });
+
+        document.getElementById('colorAnim').addEventListener('change', (e) => {
+            toggleAnimationType('color', e.target.checked);
+        });
+
+        // 创建粒子背景效果
+        const particleGeometry = new THREE.BufferGeometry();
+        const particleCount = 200;
+        const positions = new Float32Array(particleCount * 3);
+
+        for (let i = 0; i < particleCount; i++) {
+            positions[i * 3] = (Math.random() - 0.5) * 50;
+            positions[i * 3 + 1] = (Math.random() - 0.5) * 50;
+            positions[i * 3 + 2] = (Math.random() - 0.5) * 50;
+        }
+
+        particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        const particleMaterial = new THREE.PointsMaterial({
+            color: 0x888888,
+            size: 0.1,
+            transparent: true,
+            opacity: 0.6
+        });
+
+        const particles = new THREE.Points(particleGeometry, particleMaterial);
+        scene.add(particles);
+
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const deltaTime = clock.getDelta();
+            
+            // 更新动画混合器
+            mixers.forEach(mixer => mixer.update(deltaTime));
+            
+            controls.update();
+            
+            // 旋转粒子背景
+            particles.rotation.y += 0.001;
+            particles.rotation.x += 0.0005;
+            
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // 响应窗口大小变化
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

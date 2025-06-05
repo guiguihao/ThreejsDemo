@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>06_骨骼动画系统</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 15px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            border-radius: 5px;
+            max-width: 380px;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>Three.js 进阶 - 骨骼动画系统</h3>
+        <p>这个示例展示了：</p>
+        <ul>
+            <li>骨骼(Bone)层次结构</li>
+            <li>蒙皮网格(SkinnedMesh)</li>
+            <li>骨骼权重影响</li>
+            <li>骨骼动画控制</li>
+            <li>多个骨骼动画混合</li>
+        </ul>
+    </div>
+
+    <div class="controls">
+        <label>动画播放: <input type="checkbox" id="playAnimation" checked></label><br>
+        <label>显示骨骼: <input type="checkbox" id="showBones" checked></label><br>
+        <label>动画速度: <input type="range" id="animationSpeed" min="0" max="3" value="1" step="0.1"></label><br>
+        <label>骨骼1角度: <input type="range" id="bone1Angle" min="-180" max="180" value="0"></label><br>
+        <label>骨骼2角度: <input type="range" id="bone2Angle" min="-180" max="180" value="0"></label><br>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 创建场景
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x202020);
+
+        // 创建相机
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(5, 3, 8);
+
+        // 创建渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // 添加轨道控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // 创建时钟
+        const clock = new THREE.Clock();
+
+        // 创建骨骼系统
+        function createSkeletonSystem() {
+            // 创建骨骼
+            const bones = [];
+            
+            // 根骨骼
+            const rootBone = new THREE.Bone();
+            rootBone.name = 'Root';
+            rootBone.position.set(0, 0, 0);
+            bones.push(rootBone);
+
+            // 第一节骨骼
+            const bone1 = new THREE.Bone();
+            bone1.name = 'Bone1';
+            bone1.position.set(0, 2, 0);
+            rootBone.add(bone1);
+            bones.push(bone1);
+
+            // 第二节骨骼
+            const bone2 = new THREE.Bone();
+            bone2.name = 'Bone2';
+            bone2.position.set(0, 2, 0);
+            bone1.add(bone2);
+            bones.push(bone2);
+
+            // 第三节骨骼
+            const bone3 = new THREE.Bone();
+            bone3.name = 'Bone3';
+            bone3.position.set(0, 2, 0);
+            bone2.add(bone3);
+            bones.push(bone3);
+
+            // 创建骨骼系统
+            const skeleton = new THREE.Skeleton(bones);
+
+            return { bones, skeleton };
+        }
+
+        // 创建蒙皮几何体
+        function createSkinnedGeometry() {
+            const geometry = new THREE.CylinderGeometry(0.3, 0.8, 6, 16, 20);
+            
+            // 获取位置属性
+            const position = geometry.attributes.position;
+            const skinIndices = [];
+            const skinWeights = [];
+
+            // 为每个顶点设置骨骼影响
+            for (let i = 0; i < position.count; i++) {
+                const y = position.getY(i);
+                
+                // 根据Y坐标确定骨骼影响
+                let boneIndex1, boneIndex2, weight1, weight2;
+                
+                if (y < -2) {
+                    // 底部：主要受根骨骼影响
+                    boneIndex1 = 0; boneIndex2 = 1;
+                    weight1 = 0.8; weight2 = 0.2;
+                } else if (y < 0) {
+                    // 中下部：根骨骼和第一骨骼
+                    boneIndex1 = 0; boneIndex2 = 1;
+                    weight1 = 0.5; weight2 = 0.5;
+                } else if (y < 2) {
+                    // 中上部：第一和第二骨骼
+                    boneIndex1 = 1; boneIndex2 = 2;
+                    weight1 = 0.6; weight2 = 0.4;
+                } else {
+                    // 顶部：主要受第二和第三骨骼影响
+                    boneIndex1 = 2; boneIndex2 = 3;
+                    weight1 = 0.7; weight2 = 0.3;
+                }
+
+                skinIndices.push(boneIndex1, boneIndex2, 0, 0);
+                skinWeights.push(weight1, weight2, 0, 0);
+            }
+
+            // 设置蒙皮属性
+            geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
+            geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
+
+            return geometry;
+        }
+
+        // 创建骨骼和几何体
+        const { bones, skeleton } = createSkeletonSystem();
+        const geometry = createSkinnedGeometry();
+
+        // 创建材质
+        const material = new THREE.MeshPhongMaterial({
+            color: 0x4ecdc4,
+            shininess: 100,
+            transparent: true,
+            opacity: 0.8
+        });
+
+        // 创建蒙皮网格
+        const skinnedMesh = new THREE.SkinnedMesh(geometry, material);
+        skinnedMesh.add(bones[0]); // 添加根骨骼
+        skinnedMesh.bind(skeleton); // 绑定骨骼
+
+        scene.add(skinnedMesh);
+
+        // 创建骨骼辅助器
+        const skeletonHelper = new THREE.SkeletonHelper(skinnedMesh);
+        skeletonHelper.material.linewidth = 3;
+        scene.add(skeletonHelper);
+
+        // 创建动画混合器
+        const mixer = new THREE.AnimationMixer(skinnedMesh);
+
+        // 创建摆动动画
+        function createSwayAnimation() {
+            const tracks = [];
+
+            // 第一节骨骼的旋转动画
+            const bone1RotationKF = new THREE.QuaternionKeyframeTrack(
+                'Bone1.quaternion',
+                [0, 1, 2, 3, 4],
+                [
+                    0, 0, 0, 1,
+                    0, 0, Math.sin(Math.PI / 8), Math.cos(Math.PI / 8),
+                    0, 0, 0, 1,
+                    0, 0, Math.sin(-Math.PI / 8), Math.cos(-Math.PI / 8),
+                    0, 0, 0, 1
+                ]
+            );
+
+            // 第二节骨骼的旋转动画
+            const bone2RotationKF = new THREE.QuaternionKeyframeTrack(
+                'Bone2.quaternion',
+                [0, 1, 2, 3, 4],
+                [
+                    0, 0, 0, 1,
+                    0, 0, Math.sin(-Math.PI / 6), Math.cos(-Math.PI / 6),
+                    0, 0, 0, 1,
+                    0, 0, Math.sin(Math.PI / 6), Math.cos(Math.PI / 6),
+                    0, 0, 0, 1
+                ]
+            );
+
+            tracks.push(bone1RotationKF, bone2RotationKF);
+
+            const clip = new THREE.AnimationClip('sway', 4, tracks);
+            return mixer.clipAction(clip);
+        }
+
+        // 创建弯曲动画
+        function createBendAnimation() {
+            const tracks = [];
+
+            // 第一节骨骼弯曲
+            const bone1BendKF = new THREE.QuaternionKeyframeTrack(
+                'Bone1.quaternion',
+                [0, 2, 4],
+                [
+                    0, 0, 0, 1,
+                    Math.sin(Math.PI / 6), 0, 0, Math.cos(Math.PI / 6),
+                    0, 0, 0, 1
+                ]
+            );
+
+            // 第二节骨骼弯曲
+            const bone2BendKF = new THREE.QuaternionKeyframeTrack(
+                'Bone2.quaternion',
+                [0, 2, 4],
+                [
+                    0, 0, 0, 1,
+                    Math.sin(Math.PI / 4), 0, 0, Math.cos(Math.PI / 4),
+                    0, 0, 0, 1
+                ]
+            );
+
+            tracks.push(bone1BendKF, bone2BendKF);
+
+            const clip = new THREE.AnimationClip('bend', 4, tracks);
+            return mixer.clipAction(clip);
+        }
+
+        // 创建动画动作
+        const swayAction = createSwayAnimation();
+        const bendAction = createBendAnimation();
+
+        swayAction.setLoop(THREE.LoopRepeat);
+        bendAction.setLoop(THREE.LoopRepeat);
+
+        // 设置动画权重
+        swayAction.weight = 0.7;
+        bendAction.weight = 0.3;
+
+        swayAction.play();
+        bendAction.play();
+
+        // 添加多个蒙皮网格形成森林效果
+        const forest = [];
+        for (let i = 0; i < 6; i++) {
+            if (i === 0) continue; // 跳过主要的网格
+
+            const { bones: forestBones, skeleton: forestSkeleton } = createSkeletonSystem();
+            const forestGeometry = createSkinnedGeometry();
+            const forestMaterial = new THREE.MeshPhongMaterial({
+                color: new THREE.Color().setHSL(0.3 + Math.random() * 0.3, 0.7, 0.5),
+                transparent: true,
+                opacity: 0.6
+            });
+
+            const forestMesh = new THREE.SkinnedMesh(forestGeometry, forestMaterial);
+            forestMesh.add(forestBones[0]);
+            forestMesh.bind(forestSkeleton);
+
+            // 随机位置和大小
+            const angle = (i / 6) * Math.PI * 2;
+            forestMesh.position.set(
+                Math.cos(angle) * (4 + Math.random() * 3),
+                0,
+                Math.sin(angle) * (4 + Math.random() * 3)
+            );
+            forestMesh.scale.setScalar(0.5 + Math.random() * 0.5);
+
+            scene.add(forestMesh);
+            forest.push(forestMesh);
+
+            // 为每个森林网格创建简单的摆动动画
+            const forestMixer = new THREE.AnimationMixer(forestMesh);
+            const forestAction = createSwayAnimation();
+            forestAction.startAt(Math.random() * 4);
+            forestAction.play();
+            forest[i - 1].mixer = forestMixer;
+        }
+
+        // 添加地面
+        const groundGeometry = new THREE.CircleGeometry(15, 32);
+        const groundMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0x3a5f3a,
+            transparent: true,
+            opacity: 0.8
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -3;
+        scene.add(ground);
+
+        // 添加光照
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        directionalLight.position.set(5, 10, 5);
+        scene.add(directionalLight);
+
+        // 添加点光源
+        const pointLight = new THREE.PointLight(0xffaa44, 0.8, 20);
+        pointLight.position.set(0, 5, 0);
+        scene.add(pointLight);
+
+        // 控制变量
+        let animationEnabled = true;
+        let manualControl = false;
+
+        // 事件监听器
+        document.getElementById('playAnimation').addEventListener('change', (e) => {
+            animationEnabled = e.target.checked;
+            if (animationEnabled) {
+                swayAction.play();
+                bendAction.play();
+                manualControl = false;
+            } else {
+                swayAction.stop();
+                bendAction.stop();
+                manualControl = true;
+            }
+        });
+
+        document.getElementById('showBones').addEventListener('change', (e) => {
+            skeletonHelper.visible = e.target.checked;
+        });
+
+        document.getElementById('animationSpeed').addEventListener('input', (e) => {
+            const speed = parseFloat(e.target.value);
+            mixer.timeScale = speed;
+            forest.forEach(mesh => {
+                if (mesh.mixer) mesh.mixer.timeScale = speed;
+            });
+        });
+
+        document.getElementById('bone1Angle').addEventListener('input', (e) => {
+            if (manualControl) {
+                const angle = parseFloat(e.target.value) * Math.PI / 180;
+                bones[1].rotation.z = angle;
+            }
+        });
+
+        document.getElementById('bone2Angle').addEventListener('input', (e) => {
+            if (manualControl) {
+                const angle = parseFloat(e.target.value) * Math.PI / 180;
+                bones[2].rotation.z = angle;
+            }
+        });
+
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const deltaTime = clock.getDelta();
+            
+            if (animationEnabled) {
+                mixer.update(deltaTime);
+                forest.forEach(mesh => {
+                    if (mesh.mixer) mesh.mixer.update(deltaTime);
+                });
+            }
+            
+            controls.update();
+            
+            // 让点光源轻微移动
+            const time = Date.now() * 0.001;
+            pointLight.position.x = Math.sin(time * 0.5) * 2;
+            pointLight.position.z = Math.cos(time * 0.5) * 2;
+            
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // 响应窗口大小变化
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

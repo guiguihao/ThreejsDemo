@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>14 - 基础变换 | Three.js基础</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            padding: 5px;
+            font-size: 14px;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 100;
+        }
+
+        .control-panel {
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            width: 300px;
+            z-index: 100;
+        }
+
+        .control-panel h3 {
+            margin-bottom: 10px;
+            font-size: 14px;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group h4 {
+            margin-bottom: 5px;
+            font-size: 13px;
+            color: #aaa;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .control-group label span {
+            min-width: 30px;
+            text-align: right;
+        }
+
+        input[type="range"] {
+            width: 70%;
+            margin: 0 10px;
+        }
+
+        button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin: 5px 0;
+            font-size: 12px;
+        }
+
+        button:hover {
+            background: #3b78e7;
+        }
+
+        .transforms-info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 5px;
+            color: white;
+            max-width: 500px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .transforms-info h3 {
+            margin-bottom: 10px;
+            font-size: 16px;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+
+        .transforms-info p {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">14 - 基础变换 | Three.js基础教程</div>
+    <div class="control-panel">
+        <h3>变换控制面板</h3>
+        
+        <div class="control-group">
+            <h4>平移 (position)</h4>
+            <label>
+                X轴 <input type="range" id="position-x" min="-5" max="5" step="0.1" value="0"> <span id="position-x-value">0</span>
+            </label>
+            <label>
+                Y轴 <input type="range" id="position-y" min="-5" max="5" step="0.1" value="0"> <span id="position-y-value">0</span>
+            </label>
+            <label>
+                Z轴 <input type="range" id="position-z" min="-5" max="5" step="0.1" value="0"> <span id="position-z-value">0</span>
+            </label>
+        </div>
+        
+        <div class="control-group">
+            <h4>旋转 (rotation)</h4>
+            <label>
+                X轴 <input type="range" id="rotation-x" min="0" max="6.28" step="0.1" value="0"> <span id="rotation-x-value">0</span>
+            </label>
+            <label>
+                Y轴 <input type="range" id="rotation-y" min="0" max="6.28" step="0.1" value="0"> <span id="rotation-y-value">0</span>
+            </label>
+            <label>
+                Z轴 <input type="range" id="rotation-z" min="0" max="6.28" step="0.1" value="0"> <span id="rotation-z-value">0</span>
+            </label>
+        </div>
+        
+        <div class="control-group">
+            <h4>缩放 (scale)</h4>
+            <label>
+                X轴 <input type="range" id="scale-x" min="0.1" max="2" step="0.1" value="1"> <span id="scale-x-value">1</span>
+            </label>
+            <label>
+                Y轴 <input type="range" id="scale-y" min="0.1" max="2" step="0.1" value="1"> <span id="scale-y-value">1</span>
+            </label>
+            <label>
+                Z轴 <input type="range" id="scale-z" min="0.1" max="2" step="0.1" value="1"> <span id="scale-z-value">1</span>
+            </label>
+        </div>
+        
+        <div class="control-group">
+            <button id="reset-transforms">重置所有变换</button>
+            <button id="animate-transforms">动画演示</button>
+            <button id="toggle-local-world">切换本地/世界坐标</button>
+            <button id="toggle-helpers">显示/隐藏辅助工具</button>
+        </div>
+        
+        <div class="control-group">
+            <h4>高级变换</h4>
+            <button id="look-at">注视原点</button>
+            <button id="apply-matrix">应用矩阵变换</button>
+            <button id="quaternion-rotate">四元数旋转</button>
+        </div>
+    </div>
+
+    <div class="transforms-info">
+        <h3>Three.js基础变换</h3>
+        <p>Three.js中的每个3D对象都有三种基本变换属性：</p>
+        <ul>
+            <li><strong>position</strong> - 控制对象在3D空间中的位置（平移）</li>
+            <li><strong>rotation</strong> - 控制对象的旋转角度（欧拉角）</li>
+            <li><strong>scale</strong> - 控制对象的大小（缩放）</li>
+        </ul>
+        <p>这些变换可以在本地坐标系或世界坐标系中应用。使用控制面板调整参数，观察变换的效果。</p>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.159.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.159.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { TransformControls } from 'three/addons/controls/TransformControls.js';
+
+        // 初始化场景、相机和渲染器
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a);
+        
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 5, 10);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+        
+        // 创建轨道控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        
+        // 创建变换控制器（暂时隐藏）
+        const transformControls = new TransformControls(camera, renderer.domElement);
+        scene.add(transformControls);
+        transformControls.visible = false;
+        
+        transformControls.addEventListener('dragging-changed', function(event) {
+            controls.enabled = !event.value;
+        });
+        
+        // 添加环境光
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+        scene.add(ambientLight);
+        
+        // 添加方向光
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 10, 7);
+        scene.add(directionalLight);
+        
+        // 创建辅助对象
+        const axesHelper = new THREE.AxesHelper(5);
+        scene.add(axesHelper);
+        
+        const gridHelper = new THREE.GridHelper(10, 10, 0x444444, 0x222222);
+        scene.add(gridHelper);
+        
+        // 创建世界坐标辅助
+        const worldAxesHelper = new THREE.AxesHelper(2);
+        worldAxesHelper.position.set(0, 0.01, 0);  // 略微抬高，避免与网格重叠
+        scene.add(worldAxesHelper);
+        
+        // 所有辅助工具的集合
+        const helpers = [axesHelper, gridHelper, worldAxesHelper];
+        
+        // 创建主要的示例对象 - 使用有质感的立方体
+        const geometry = new THREE.BoxGeometry(2, 2, 2);
+        
+        // 为立方体的六个面设置不同的材质，便于观察旋转
+        const materials = [
+            new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.5 }), // 右
+            new THREE.MeshStandardMaterial({ color: 0x00ff00, roughness: 0.5 }), // 左
+            new THREE.MeshStandardMaterial({ color: 0x0000ff, roughness: 0.5 }), // 上
+            new THREE.MeshStandardMaterial({ color: 0xffff00, roughness: 0.5 }), // 下
+            new THREE.MeshStandardMaterial({ color: 0xff00ff, roughness: 0.5 }), // 前
+            new THREE.MeshStandardMaterial({ color: 0x00ffff, roughness: 0.5 })  // 后
+        ];
+        
+        const cube = new THREE.Mesh(geometry, materials);
+        scene.add(cube);
+        
+        // 添加立方体的本地坐标系辅助
+        const cubeAxesHelper = new THREE.AxesHelper(1.5);
+        cube.add(cubeAxesHelper);
+        
+        // 设置变换控制器的目标为立方体
+        transformControls.attach(cube);
+        
+        // 添加事件监听器
+        // 1. 平移控制
+        const positionXInput = document.getElementById('position-x');
+        const positionYInput = document.getElementById('position-y');
+        const positionZInput = document.getElementById('position-z');
+        
+        positionXInput.addEventListener('input', updatePosition);
+        positionYInput.addEventListener('input', updatePosition);
+        positionZInput.addEventListener('input', updatePosition);
+        
+        function updatePosition() {
+            cube.position.x = parseFloat(positionXInput.value);
+            cube.position.y = parseFloat(positionYInput.value);
+            cube.position.z = parseFloat(positionZInput.value);
+            
+            document.getElementById('position-x-value').textContent = parseFloat(positionXInput.value).toFixed(1);
+            document.getElementById('position-y-value').textContent = parseFloat(positionYInput.value).toFixed(1);
+            document.getElementById('position-z-value').textContent = parseFloat(positionZInput.value).toFixed(1);
+            
+            updateTransformsInfo();
+        }
+        
+        // 2. 旋转控制
+        const rotationXInput = document.getElementById('rotation-x');
+        const rotationYInput = document.getElementById('rotation-y');
+        const rotationZInput = document.getElementById('rotation-z');
+        
+        rotationXInput.addEventListener('input', updateRotation);
+        rotationYInput.addEventListener('input', updateRotation);
+        rotationZInput.addEventListener('input', updateRotation);
+        
+        function updateRotation() {
+            cube.rotation.x = parseFloat(rotationXInput.value);
+            cube.rotation.y = parseFloat(rotationYInput.value);
+            cube.rotation.z = parseFloat(rotationZInput.value);
+            
+            document.getElementById('rotation-x-value').textContent = parseFloat(rotationXInput.value).toFixed(1);
+            document.getElementById('rotation-y-value').textContent = parseFloat(rotationYInput.value).toFixed(1);
+            document.getElementById('rotation-z-value').textContent = parseFloat(rotationZInput.value).toFixed(1);
+            
+            updateTransformsInfo();
+        }
+        
+        // 3. 缩放控制
+        const scaleXInput = document.getElementById('scale-x');
+        const scaleYInput = document.getElementById('scale-y');
+        const scaleZInput = document.getElementById('scale-z');
+        
+        scaleXInput.addEventListener('input', updateScale);
+        scaleYInput.addEventListener('input', updateScale);
+        scaleZInput.addEventListener('input', updateScale);
+        
+        function updateScale() {
+            cube.scale.x = parseFloat(scaleXInput.value);
+            cube.scale.y = parseFloat(scaleYInput.value);
+            cube.scale.z = parseFloat(scaleZInput.value);
+            
+            document.getElementById('scale-x-value').textContent = parseFloat(scaleXInput.value).toFixed(1);
+            document.getElementById('scale-y-value').textContent = parseFloat(scaleYInput.value).toFixed(1);
+            document.getElementById('scale-z-value').textContent = parseFloat(scaleZInput.value).toFixed(1);
+            
+            updateTransformsInfo();
+        }
+        
+        // 4. 重置所有变换
+        document.getElementById('reset-transforms').addEventListener('click', resetTransforms);
+        
+        function resetTransforms() {
+            // 重置对象变换
+            cube.position.set(0, 0, 0);
+            cube.rotation.set(0, 0, 0);
+            cube.scale.set(1, 1, 1);
+            
+            // 重置UI控制值
+            positionXInput.value = 0;
+            positionYInput.value = 0;
+            positionZInput.value = 0;
+            document.getElementById('position-x-value').textContent = '0';
+            document.getElementById('position-y-value').textContent = '0';
+            document.getElementById('position-z-value').textContent = '0';
+            
+            rotationXInput.value = 0;
+            rotationYInput.value = 0;
+            rotationZInput.value = 0;
+            document.getElementById('rotation-x-value').textContent = '0';
+            document.getElementById('rotation-y-value').textContent = '0';
+            document.getElementById('rotation-z-value').textContent = '0';
+            
+            scaleXInput.value = 1;
+            scaleYInput.value = 1;
+            scaleZInput.value = 1;
+            document.getElementById('scale-x-value').textContent = '1';
+            document.getElementById('scale-y-value').textContent = '1';
+            document.getElementById('scale-z-value').textContent = '1';
+            
+            // 停止任何正在进行的动画
+            isAnimating = false;
+            
+            updateTransformsInfo();
+        }
+        
+        // 5. 动画演示
+        let isAnimating = false;
+        document.getElementById('animate-transforms').addEventListener('click', toggleAnimation);
+        
+        function toggleAnimation() {
+            isAnimating = !isAnimating;
+            document.getElementById('animate-transforms').textContent = isAnimating ? '停止动画' : '动画演示';
+        }
+        
+        // 6. 切换本地/世界坐标
+        let useLocalSpace = true;
+        document.getElementById('toggle-local-world').addEventListener('click', toggleCoordinateSpace);
+        
+        function toggleCoordinateSpace() {
+            useLocalSpace = !useLocalSpace;
+            transformControls.setSpace(useLocalSpace ? 'local' : 'world');
+            document.getElementById('toggle-local-world').textContent = 
+                useLocalSpace ? '切换到世界坐标' : '切换到本地坐标';
+        }
+        
+        // 7. 显示/隐藏辅助工具
+        let helpersVisible = true;
+        document.getElementById('toggle-helpers').addEventListener('click', toggleHelpers);
+        
+        function toggleHelpers() {
+            helpersVisible = !helpersVisible;
+            helpers.forEach(helper => helper.visible = helpersVisible);
+            cubeAxesHelper.visible = helpersVisible;
+            document.getElementById('toggle-helpers').textContent = 
+                helpersVisible ? '隐藏辅助工具' : '显示辅助工具';
+        }
+        
+        // 8. 注视原点
+        document.getElementById('look-at').addEventListener('click', () => {
+            // 将立方体旋转，使其"看向"原点
+            // 注意：lookAt只影响旋转，不会改变位置
+            if (cube.position.length() > 0) {
+                cube.lookAt(0, 0, 0);
+                
+                // 更新UI控制值以反映新的旋转状态
+                rotationXInput.value = cube.rotation.x;
+                rotationYInput.value = cube.rotation.y;
+                rotationZInput.value = cube.rotation.z;
+                document.getElementById('rotation-x-value').textContent = cube.rotation.x.toFixed(1);
+                document.getElementById('rotation-y-value').textContent = cube.rotation.y.toFixed(1);
+                document.getElementById('rotation-z-value').textContent = cube.rotation.z.toFixed(1);
+                
+                updateTransformsInfo();
+            }
+        });
+        
+        // 9. 应用矩阵变换
+        document.getElementById('apply-matrix').addEventListener('click', () => {
+            // 创建一个4x4矩阵并应用变换
+            const matrix = new THREE.Matrix4();
+            
+            // 组合多个变换：先平移，再旋转，最后缩放
+            matrix.compose(
+                new THREE.Vector3(1, 2, 0),  // 平移
+                new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 4, 0)), // 旋转45度
+                new THREE.Vector3(1.5, 1.5, 1.5)  // 缩放
+            );
+            
+            // 应用矩阵变换
+            cube.applyMatrix4(matrix);
+            
+            // 更新UI控制值以反映新的变换状态
+            updateUIFromObject();
+            updateTransformsInfo();
+        });
+        
+        // 10. 四元数旋转
+        document.getElementById('quaternion-rotate').addEventListener('click', () => {
+            // 使用四元数进行旋转
+            const quaternion = new THREE.Quaternion();
+            quaternion.setFromAxisAngle(new THREE.Vector3(1, 1, 1).normalize(), Math.PI / 3);
+            
+            // 应用四元数旋转
+            cube.quaternion.premultiply(quaternion);
+            
+            // 更新UI控制值以反映新的旋转状态
+            updateUIFromObject();
+        });
+        
+        // 辅助函数：根据对象当前状态更新UI控制值
+        function updateUIFromObject() {
+            positionXInput.value = cube.position.x;
+            positionYInput.value = cube.position.y;
+            positionZInput.value = cube.position.z;
+            document.getElementById('position-x-value').textContent = cube.position.x.toFixed(1);
+            document.getElementById('position-y-value').textContent = cube.position.y.toFixed(1);
+            document.getElementById('position-z-value').textContent = cube.position.z.toFixed(1);
+            
+            rotationXInput.value = cube.rotation.x;
+            rotationYInput.value = cube.rotation.y;
+            rotationZInput.value = cube.rotation.z;
+            document.getElementById('rotation-x-value').textContent = cube.rotation.x.toFixed(1);
+            document.getElementById('rotation-y-value').textContent = cube.rotation.y.toFixed(1);
+            document.getElementById('rotation-z-value').textContent = cube.rotation.z.toFixed(1);
+            
+            scaleXInput.value = cube.scale.x;
+            scaleYInput.value = cube.scale.y;
+            scaleZInput.value = cube.scale.z;
+            document.getElementById('scale-x-value').textContent = cube.scale.x.toFixed(1);
+            document.getElementById('scale-y-value').textContent = cube.scale.y.toFixed(1);
+            document.getElementById('scale-z-value').textContent = cube.scale.z.toFixed(1);
+        }
+        
+        // 更新变换信息面板
+        function updateTransformsInfo() {
+            // 可以在这里添加高级信息显示，例如世界矩阵、局部矩阵等
+        }
+        
+        // 响应窗口大小变化
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // 动画循环
+        let time = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.01;
+            
+            // 动画演示
+            if (isAnimating) {
+                // 周期性变换
+                const t = time % (Math.PI * 2);
+                
+                // 1. 周期性平移
+                cube.position.x = 2 * Math.sin(t);
+                cube.position.y = Math.abs(Math.sin(t * 1.5));
+                cube.position.z = 2 * Math.cos(t);
+                
+                // 2. 周期性旋转
+                cube.rotation.x = t;
+                cube.rotation.y = t * 0.5;
+                
+                // 3. 周期性缩放
+                const scale = 0.75 + 0.5 * Math.sin(t * 2);
+                cube.scale.set(scale, scale, scale);
+                
+                // 更新UI控制值
+                updateUIFromObject();
+            }
+            
+            // 更新控制器
+            controls.update();
+            
+            // 渲染场景
+            renderer.render(scene, camera);
+        }
+        
+        animate();
+        
+        // 输出一些关于变换的教育性信息到控制台
+        console.log('变换基础说明:');
+        console.log('1. position - 控制对象的位置，是一个Vector3对象');
+        console.log('2. rotation - 控制对象的旋转，基于欧拉角，默认顺序为XYZ');
+        console.log('3. scale - 控制对象的缩放，也是一个Vector3对象');
+        console.log('4. quaternion - 另一种表示旋转的方式，可避免万向节锁问题');
+        console.log('5. matrix - 4x4矩阵，可以组合所有变换');
+        console.log('\n可通过控制面板交互式地探索这些变换的效果');
+    </script>
+</body>
+</html>

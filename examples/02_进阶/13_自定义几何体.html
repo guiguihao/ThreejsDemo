@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>13_自定义几何体</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 350px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            width: 280px;
+            font-size: 12px;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin: 5px 0;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 2px;
+            font-size: 11px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.active {
+            background: #ff6b6b;
+        }
+        .geometry-info {
+            background: rgba(255,255,255,0.1);
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 11px;
+        }
+        .value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+        .code-display {
+            background: rgba(0,0,0,0.6);
+            color: #00ff88;
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 10px;
+            white-space: pre-wrap;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>自定义几何体创建</h3>
+        <p>本示例展示了Three.js自定义几何体的创建方法：</p>
+        <ul>
+            <li><strong>BufferGeometry</strong> - 高性能几何体</li>
+            <li><strong>顶点数据</strong> - 位置、法线、UV坐标</li>
+            <li><strong>索引缓冲</strong> - 优化顶点重用</li>
+            <li><strong>程序化生成</strong> - 数学函数生成形状</li>
+            <li><strong>动态更新</strong> - 实时修改几何体</li>
+        </ul>
+        <p><strong>学习要点：</strong></p>
+        <p>• 理解顶点数据结构</p>
+        <p>• 掌握三角形网格构建</p>
+        <p>• 学习法线计算方法</p>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>几何体类型</label>
+            <button id="geomTriangle" class="active">三角形</button>
+            <button id="geomQuad">四边形</button>
+            <button id="geomStar">星形</button>
+            <button id="geomWave">波浪平面</button>
+        </div>
+
+        <div class="control-group">
+            <label>细分级别: <span class="value" id="subdivisionValue">10</span></label>
+            <input type="range" id="subdivisions" min="3" max="50" value="10" step="1">
+        </div>
+
+        <div class="control-group">
+            <label>波浪频率: <span class="value" id="frequencyValue">2.0</span></label>
+            <input type="range" id="frequency" min="0.5" max="5" value="2" step="0.1">
+        </div>
+
+        <div class="control-group">
+            <label>波浪幅度: <span class="value" id="amplitudeValue">2.0</span></label>
+            <input type="range" id="amplitude" min="0.5" max="5" value="2" step="0.1">
+        </div>
+
+        <div class="control-group">
+            <label>显示选项</label>
+            <button id="showWireframe">线框模式</button>
+            <button id="showVertices">显示顶点</button>
+            <button id="showNormals">显示法线</button>
+            <button id="animate">动画开关</button>
+        </div>
+
+        <div class="control-group">
+            <button id="regenerate">重新生成</button>
+            <button id="exportGeometry">导出几何体</button>
+            <button id="computeNormals">重算法线</button>
+        </div>
+
+        <div class="geometry-info" id="geoInfo">
+            顶点数：<span class="value">0</span><br>
+            三角形：<span class="value">0</span><br>
+            面数：<span class="value">0</span><br>
+            边界框：<span class="value">计算中...</span>
+        </div>
+
+        <div class="code-display" id="codeDisplay">
+            // 几何体创建代码将在这里显示
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 基本设置
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setClearColor(0x001122);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // 控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // 变量
+        let currentMesh = null;
+        let vertexHelper = null;
+        let normalHelper = null;
+        let geometryType = 'triangle';
+        let subdivisions = 10;
+        let frequency = 2.0;
+        let amplitude = 2.0;
+        let showWireframe = false;
+        let showVertices = false;
+        let showNormals = false;
+        let animationEnabled = false;
+        let animationTime = 0;
+
+        // 材质
+        const material = new THREE.MeshStandardMaterial({ color: 0x00ff88, side: THREE.DoubleSide });
+        const wireframeMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0xffffff, 
+            wireframe: true, 
+            transparent: true, 
+            opacity: 0.3 
+        });
+
+        // 初始化场景
+        function initScene() {
+            // 添加光照
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(10, 10, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            // 创建初始几何体
+            createGeometry();
+
+            // 设置相机位置
+            camera.position.set(5, 5, 5);
+            controls.target.set(0, 0, 0);
+        }
+
+        // 创建三角形几何体
+        function createTriangleGeometry() {
+            const geometry = new THREE.BufferGeometry();
+            
+            // 定义三角形顶点
+            const vertices = new Float32Array([
+                -1, -1, 0,  // 顶点1
+                 1, -1, 0,  // 顶点2
+                 0,  1, 0   // 顶点3
+            ]);
+            
+            // 定义法线
+            const normals = new Float32Array([
+                0, 0, 1,
+                0, 0, 1,
+                0, 0, 1
+            ]);
+            
+            // 定义UV坐标
+            const uvs = new Float32Array([
+                0, 0,
+                1, 0,
+                0.5, 1
+            ]);
+            
+            geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+            geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+            
+            return geometry;
+        }
+
+        // 创建四边形几何体
+        function createQuadGeometry() {
+            const geometry = new THREE.BufferGeometry();
+            
+            // 四个顶点
+            const vertices = new Float32Array([
+                -1, -1, 0,  // 左下
+                 1, -1, 0,  // 右下
+                 1,  1, 0,  // 右上
+                -1,  1, 0   // 左上
+            ]);
+            
+            // 索引（两个三角形组成四边形）
+            const indices = [
+                0, 1, 2,  // 第一个三角形
+                2, 3, 0   // 第二个三角形
+            ];
+            
+            const normals = new Float32Array([
+                0, 0, 1,
+                0, 0, 1,
+                0, 0, 1,
+                0, 0, 1
+            ]);
+            
+            const uvs = new Float32Array([
+                0, 0,
+                1, 0,
+                1, 1,
+                0, 1
+            ]);
+            
+            geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+            geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+            geometry.setIndex(indices);
+            
+            return geometry;
+        }
+
+        // 创建星形几何体
+        function createStarGeometry() {
+            const geometry = new THREE.BufferGeometry();
+            const points = subdivisions;
+            const vertices = [];
+            const indices = [];
+            const normals = [];
+            const uvs = [];
+            
+            // 中心点
+            vertices.push(0, 0, 0);
+            normals.push(0, 0, 1);
+            uvs.push(0.5, 0.5);
+            
+            // 外圈点（星形的尖角）
+            for (let i = 0; i < points; i++) {
+                const angle = (i / points) * Math.PI * 2;
+                const x = Math.cos(angle) * 2;
+                const y = Math.sin(angle) * 2;
+                
+                vertices.push(x, y, 0);
+                normals.push(0, 0, 1);
+                uvs.push((x + 2) / 4, (y + 2) / 4);
+            }
+            
+            // 内圈点（星形的凹陷）
+            for (let i = 0; i < points; i++) {
+                const angle = (i / points) * Math.PI * 2 + Math.PI / points;
+                const x = Math.cos(angle) * 1;
+                const y = Math.sin(angle) * 1;
+                
+                vertices.push(x, y, 0);
+                normals.push(0, 0, 1);
+                uvs.push((x + 2) / 4, (y + 2) / 4);
+            }
+            
+            // 创建三角形索引
+            for (let i = 0; i < points; i++) {
+                const outerCurrent = i + 1;
+                const outerNext = (i + 1) % points + 1;
+                const innerCurrent = i + points + 1;
+                const innerNext = (i + 1) % points + points + 1;
+                
+                // 从中心到外圈的三角形
+                indices.push(0, outerCurrent, innerCurrent);
+                indices.push(0, innerCurrent, outerNext);
+            }
+            
+            geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+            geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normals), 3));
+            geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uvs), 2));
+            geometry.setIndex(indices);
+            
+            return geometry;
+        }
+
+        // 创建波浪平面几何体
+        function createWaveGeometry() {
+            const geometry = new THREE.BufferGeometry();
+            const width = subdivisions;
+            const height = subdivisions;
+            const vertices = [];
+            const indices = [];
+            const normals = [];
+            const uvs = [];
+            
+            // 生成顶点
+            for (let y = 0; y <= height; y++) {
+                for (let x = 0; x <= width; x++) {
+                    const u = x / width;
+                    const v = y / height;
+                    
+                    const posX = (u - 0.5) * 6;
+                    const posZ = (v - 0.5) * 6;
+                    const posY = Math.sin(posX * frequency + animationTime) * 
+                                 Math.cos(posZ * frequency + animationTime) * amplitude;
+                    
+                    vertices.push(posX, posY, posZ);
+                    uvs.push(u, v);
+                }
+            }
+            
+            // 生成索引
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const a = (y * (width + 1)) + x;
+                    const b = (y * (width + 1)) + x + 1;
+                    const c = ((y + 1) * (width + 1)) + x;
+                    const d = ((y + 1) * (width + 1)) + x + 1;
+                    
+                    indices.push(a, b, c);
+                    indices.push(b, d, c);
+                }
+            }
+            
+            geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+            geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uvs), 2));
+            geometry.setIndex(indices);
+            
+            // 计算法线
+            geometry.computeVertexNormals();
+            
+            return geometry;
+        }
+
+        function createGeometry() {
+            // 移除旧的网格
+            if (currentMesh) {
+                scene.remove(currentMesh);
+                currentMesh.geometry.dispose();
+            }
+            
+            // 移除辅助对象
+            removeHelpers();
+            
+            let geometry;
+            let codeSnippet = '';
+            
+            switch (geometryType) {
+                case 'triangle':
+                    geometry = createTriangleGeometry();
+                    codeSnippet = `// 创建三角形几何体
+const geometry = new THREE.BufferGeometry();
+const vertices = new Float32Array([
+    -1, -1, 0,  // 顶点1
+     1, -1, 0,  // 顶点2
+     0,  1, 0   // 顶点3
+]);
+geometry.setAttribute('position', 
+    new THREE.BufferAttribute(vertices, 3));`;
+                    break;
+                case 'quad':
+                    geometry = createQuadGeometry();
+                    codeSnippet = `// 创建四边形几何体
+const geometry = new THREE.BufferGeometry();
+const vertices = new Float32Array([...]);
+const indices = [0, 1, 2, 2, 3, 0];
+geometry.setAttribute('position', ...);
+geometry.setIndex(indices);`;
+                    break;
+                case 'star':
+                    geometry = createStarGeometry();
+                    codeSnippet = `// 创建星形几何体
+const geometry = new THREE.BufferGeometry();
+// 生成 ${subdivisions} 个点的星形
+// 使用极坐标计算顶点位置
+// 创建三角形索引连接所有点`;
+                    break;
+                case 'wave':
+                    geometry = createWaveGeometry();
+                    codeSnippet = `// 创建波浪平面几何体
+const geometry = new THREE.BufferGeometry();
+// 网格分辨率: ${subdivisions}x${subdivisions}
+// 波浪函数: sin(x*${frequency})*cos(z*${frequency})*${amplitude}
+geometry.computeVertexNormals();`;
+                    break;
+            }
+            
+            // 创建网格
+            currentMesh = new THREE.Mesh(geometry, material);
+            currentMesh.castShadow = true;
+            scene.add(currentMesh);
+            
+            // 更新显示
+            updateDisplayMode();
+            updateGeometryInfo();
+            updateCodeDisplay(codeSnippet);
+        }
+
+        function updateDisplayMode() {
+            if (!currentMesh) return;
+            
+            // 线框模式
+            currentMesh.material.wireframe = showWireframe;
+            
+            // 显示顶点
+            removeHelpers();
+            if (showVertices) {
+                createVertexHelper();
+            }
+            if (showNormals) {
+                createNormalHelper();
+            }
+        }
+
+        function createVertexHelper() {
+            const positions = currentMesh.geometry.attributes.position.array;
+            const pointsGeometry = new THREE.BufferGeometry();
+            pointsGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            
+            const pointsMaterial = new THREE.PointsMaterial({ 
+                color: 0xff0000, 
+                size: 0.1,
+                sizeAttenuation: false
+            });
+            
+            vertexHelper = new THREE.Points(pointsGeometry, pointsMaterial);
+            scene.add(vertexHelper);
+        }
+
+        function createNormalHelper() {
+            const geometry = currentMesh.geometry;
+            if (!geometry.attributes.normal) {
+                geometry.computeVertexNormals();
+            }
+            
+            const positions = geometry.attributes.position.array;
+            const normals = geometry.attributes.normal.array;
+            const normalLines = [];
+            
+            for (let i = 0; i < positions.length; i += 3) {
+                const x = positions[i];
+                const y = positions[i + 1];
+                const z = positions[i + 2];
+                
+                const nx = normals[i];
+                const ny = normals[i + 1];
+                const nz = normals[i + 2];
+                
+                normalLines.push(x, y, z);
+                normalLines.push(x + nx * 0.5, y + ny * 0.5, z + nz * 0.5);
+            }
+            
+            const normalGeometry = new THREE.BufferGeometry();
+            normalGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(normalLines), 3));
+            
+            const normalMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff });
+            normalHelper = new THREE.LineSegments(normalGeometry, normalMaterial);
+            scene.add(normalHelper);
+        }
+
+        function removeHelpers() {
+            if (vertexHelper) {
+                scene.remove(vertexHelper);
+                vertexHelper.geometry.dispose();
+                vertexHelper.material.dispose();
+                vertexHelper = null;
+            }
+            if (normalHelper) {
+                scene.remove(normalHelper);
+                normalHelper.geometry.dispose();
+                normalHelper.material.dispose();
+                normalHelper = null;
+            }
+        }
+
+        function updateGeometryInfo() {
+            if (!currentMesh) return;
+            
+            const geometry = currentMesh.geometry;
+            const vertexCount = geometry.attributes.position.count;
+            const indexCount = geometry.index ? geometry.index.count : vertexCount;
+            const triangleCount = indexCount / 3;
+            
+            geometry.computeBoundingBox();
+            const bbox = geometry.boundingBox;
+            const size = new THREE.Vector3();
+            bbox.getSize(size);
+            
+            const info = document.getElementById('geoInfo');
+            info.innerHTML = `
+                顶点数：<span class="value">${vertexCount}</span><br>
+                三角形：<span class="value">${Math.floor(triangleCount)}</span><br>
+                索引数：<span class="value">${indexCount}</span><br>
+                边界框：<span class="value">${size.x.toFixed(1)}×${size.y.toFixed(1)}×${size.z.toFixed(1)}</span>
+            `;
+        }
+
+        function updateCodeDisplay(code) {
+            document.getElementById('codeDisplay').textContent = code;
+        }
+
+        // 事件监听
+        document.getElementById('subdivisions').addEventListener('input', (e) => {
+            subdivisions = parseInt(e.target.value);
+            document.getElementById('subdivisionValue').textContent = subdivisions;
+            if (geometryType === 'star' || geometryType === 'wave') {
+                createGeometry();
+            }
+        });
+
+        document.getElementById('frequency').addEventListener('input', (e) => {
+            frequency = parseFloat(e.target.value);
+            document.getElementById('frequencyValue').textContent = frequency.toFixed(1);
+            if (geometryType === 'wave') {
+                createGeometry();
+            }
+        });
+
+        document.getElementById('amplitude').addEventListener('input', (e) => {
+            amplitude = parseFloat(e.target.value);
+            document.getElementById('amplitudeValue').textContent = amplitude.toFixed(1);
+            if (geometryType === 'wave') {
+                createGeometry();
+            }
+        });
+
+        // 几何体类型按钮
+        document.getElementById('geomTriangle').addEventListener('click', () => {
+            geometryType = 'triangle';
+            document.querySelectorAll('[id^="geom"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('geomTriangle').classList.add('active');
+            createGeometry();
+        });
+
+        document.getElementById('geomQuad').addEventListener('click', () => {
+            geometryType = 'quad';
+            document.querySelectorAll('[id^="geom"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('geomQuad').classList.add('active');
+            createGeometry();
+        });
+
+        document.getElementById('geomStar').addEventListener('click', () => {
+            geometryType = 'star';
+            document.querySelectorAll('[id^="geom"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('geomStar').classList.add('active');
+            createGeometry();
+        });
+
+        document.getElementById('geomWave').addEventListener('click', () => {
+            geometryType = 'wave';
+            document.querySelectorAll('[id^="geom"]').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('geomWave').classList.add('active');
+            createGeometry();
+        });
+
+        // 显示选项按钮
+        document.getElementById('showWireframe').addEventListener('click', () => {
+            showWireframe = !showWireframe;
+            document.getElementById('showWireframe').classList.toggle('active', showWireframe);
+            updateDisplayMode();
+        });
+
+        document.getElementById('showVertices').addEventListener('click', () => {
+            showVertices = !showVertices;
+            document.getElementById('showVertices').classList.toggle('active', showVertices);
+            updateDisplayMode();
+        });
+
+        document.getElementById('showNormals').addEventListener('click', () => {
+            showNormals = !showNormals;
+            document.getElementById('showNormals').classList.toggle('active', showNormals);
+            updateDisplayMode();
+        });
+
+        document.getElementById('animate').addEventListener('click', () => {
+            animationEnabled = !animationEnabled;
+            document.getElementById('animate').classList.toggle('active', animationEnabled);
+        });
+
+        // 其他按钮
+        document.getElementById('regenerate').addEventListener('click', createGeometry);
+
+        document.getElementById('computeNormals').addEventListener('click', () => {
+            if (currentMesh) {
+                currentMesh.geometry.computeVertexNormals();
+                if (showNormals) {
+                    removeHelpers();
+                    createNormalHelper();
+                }
+            }
+        });
+
+        document.getElementById('exportGeometry').addEventListener('click', () => {
+            if (currentMesh) {
+                const geometry = currentMesh.geometry;
+                const data = {
+                    vertices: Array.from(geometry.attributes.position.array),
+                    normals: geometry.attributes.normal ? Array.from(geometry.attributes.normal.array) : null,
+                    uvs: geometry.attributes.uv ? Array.from(geometry.attributes.uv.array) : null,
+                    indices: geometry.index ? Array.from(geometry.index.array) : null
+                };
+                
+                console.log('几何体数据:', data);
+                alert('几何体数据已输出到控制台！');
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (animationEnabled) {
+                animationTime += 0.05;
+                if (geometryType === 'wave') {
+                    createGeometry();
+                }
+            }
+            
+            // 旋转当前网格
+            if (currentMesh) {
+                currentMesh.rotation.y += 0.01;
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // 初始化
+        initScene();
+        animate();
+    </script>
+</body>
+</html>

@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>08_自定义粒子系统</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 15px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            border-radius: 5px;
+            max-width: 380px;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            max-width: 250px;
+        }
+        .effect-buttons {
+            margin-bottom: 10px;
+        }
+        .effect-buttons button {
+            margin: 2px;
+            padding: 5px 8px;
+            background: #4ecdc4;
+            border: none;
+            color: white;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .effect-buttons button.active {
+            background: #ff6b6b;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>Three.js 进阶 - 自定义粒子系统</h3>
+        <p>这个示例展示了：</p>
+        <ul>
+            <li>自定义着色器粒子</li>
+            <li>粒子发射器系统</li>
+            <li>力场与物理模拟</li>
+            <li>粒子碰撞检测</li>
+            <li>复杂粒子行为</li>
+        </ul>
+    </div>
+
+    <div class="controls">
+        <div class="effect-buttons">
+            <button id="fountain" class="active">喷泉</button>
+            <button id="explosion">爆炸</button>
+            <button id="vortex">漩涡</button>
+            <button id="rain">雨滴</button>
+        </div>
+        
+        <label>发射速率: <input type="range" id="emissionRate" min="10" max="200" value="50"></label><br>
+        <label>初始速度: <input type="range" id="initialVelocity" min="1" max="20" value="10" step="0.5"></label><br>
+        <label>重力强度: <input type="range" id="gravity" min="0" max="20" value="9.8" step="0.1"></label><br>
+        <label>阻力系数: <input type="range" id="damping" min="0.9" max="1" value="0.99" step="0.001"></label><br>
+        <label>生命周期: <input type="range" id="lifetime" min="1" max="10" value="3" step="0.1"></label><br>
+        <button id="burst">爆发效果</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 创建场景
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x001122);
+
+        // 创建相机
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 10, 20);
+
+        // 创建渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // 添加轨道控制器
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // 创建时钟
+        const clock = new THREE.Clock();
+
+        // 自定义粒子着色器
+        const particleVertexShader = `
+            attribute float size;
+            attribute float lifetime;
+            attribute float maxLifetime;
+            attribute vec3 velocity;
+            
+            varying float vLifetime;
+            varying vec3 vVelocity;
+            
+            void main() {
+                vLifetime = lifetime / maxLifetime;
+                vVelocity = velocity;
+                
+                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                gl_PointSize = size * (300.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `;
+
+        const particleFragmentShader = `
+            varying float vLifetime;
+            varying vec3 vVelocity;
+            
+            void main() {
+                // 创建圆形粒子
+                vec2 center = gl_PointCoord - vec2(0.5);
+                float dist = length(center);
+                if (dist > 0.5) discard;
+                
+                // 根据生命周期改变颜色和透明度
+                float alpha = 1.0 - vLifetime;
+                alpha *= (1.0 - dist * 2.0); // 边缘渐变
+                
+                // 根据速度改变颜色
+                float speed = length(vVelocity);
+                vec3 color = mix(vec3(0.3, 0.7, 1.0), vec3(1.0, 0.3, 0.3), speed * 0.1);
+                
+                gl_FragColor = vec4(color, alpha);
+            }
+        `;
+
+        // 高级粒子系统类
+        class AdvancedParticleSystem {
+            constructor(maxParticles = 1000) {
+                this.maxParticles = maxParticles;
+                this.particles = [];
+                this.deadParticles = [];
+                
+                // 系统参数
+                this.emissionRate = 50;
+                this.initialVelocity = 10;
+                this.gravity = new THREE.Vector3(0, -9.8, 0);
+                this.damping = 0.99;
+                this.defaultLifetime = 3;
+                this.emitterPosition = new THREE.Vector3(0, 0, 0);
+                
+                // 力场
+                this.forces = [];
+                
+                this.initGeometry();
+                this.initMaterial();
+                this.initMesh();
+            }
+
+            initGeometry() {
+                this.geometry = new THREE.BufferGeometry();
+                
+                const positions = new Float32Array(this.maxParticles * 3);
+                const sizes = new Float32Array(this.maxParticles);
+                const lifetimes = new Float32Array(this.maxParticles);
+                const maxLifetimes = new Float32Array(this.maxParticles);
+                const velocities = new Float32Array(this.maxParticles * 3);
+                
+                this.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                this.geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+                this.geometry.setAttribute('lifetime', new THREE.BufferAttribute(lifetimes, 1));
+                this.geometry.setAttribute('maxLifetime', new THREE.BufferAttribute(maxLifetimes, 1));
+                this.geometry.setAttribute('velocity', new THREE.BufferAttribute(velocities, 3));
+                
+                // 初始时隐藏所有粒子
+                for (let i = 0; i < this.maxParticles; i++) {
+                    positions[i * 3 + 1] = -1000;
+                    sizes[i] = 0;
+                }
+            }
+
+            initMaterial() {
+                this.material = new THREE.ShaderMaterial({
+                    vertexShader: particleVertexShader,
+                    fragmentShader: particleFragmentShader,
+                    transparent: true,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+            }
+
+            initMesh() {
+                this.points = new THREE.Points(this.geometry, this.material);
+                scene.add(this.points);
+            }
+
+            createParticle(position, velocity, lifetime = null) {
+                let particle;
+                
+                if (this.deadParticles.length > 0) {
+                    particle = this.deadParticles.pop();
+                } else if (this.particles.length < this.maxParticles) {
+                    particle = {
+                        index: this.particles.length,
+                        position: new THREE.Vector3(),
+                        velocity: new THREE.Vector3(),
+                        acceleration: new THREE.Vector3(),
+                        lifetime: 0,
+                        maxLifetime: 0,
+                        size: 0,
+                        active: false
+                    };
+                } else {
+                    return null; // 没有可用粒子
+                }
+
+                // 初始化粒子
+                particle.position.copy(position);
+                particle.velocity.copy(velocity);
+                particle.acceleration.set(0, 0, 0);
+                particle.lifetime = lifetime || this.defaultLifetime;
+                particle.maxLifetime = particle.lifetime;
+                particle.size = Math.random() * 10 + 5;
+                particle.active = true;
+
+                if (this.deadParticles.length === 0 && this.particles.length < this.maxParticles) {
+                    particle.index = this.particles.length;
+                    this.particles.push(particle);
+                }
+
+                this.updateParticleAttribute(particle);
+                return particle;
+            }
+
+            updateParticleAttribute(particle) {
+                const positions = this.geometry.attributes.position.array;
+                const sizes = this.geometry.attributes.size.array;
+                const lifetimes = this.geometry.attributes.lifetime.array;
+                const maxLifetimes = this.geometry.attributes.maxLifetime.array;
+                const velocities = this.geometry.attributes.velocity.array;
+
+                const i = particle.index;
+                
+                positions[i * 3] = particle.position.x;
+                positions[i * 3 + 1] = particle.position.y;
+                positions[i * 3 + 2] = particle.position.z;
+                
+                sizes[i] = particle.active ? particle.size : 0;
+                lifetimes[i] = particle.lifetime;
+                maxLifetimes[i] = particle.maxLifetime;
+                
+                velocities[i * 3] = particle.velocity.x;
+                velocities[i * 3 + 1] = particle.velocity.y;
+                velocities[i * 3 + 2] = particle.velocity.z;
+            }
+
+            killParticle(particle) {
+                particle.active = false;
+                particle.position.y = -1000; // 移出视野
+                this.updateParticleAttribute(particle);
+                this.deadParticles.push(particle);
+            }
+
+            addForce(force) {
+                this.forces.push(force);
+            }
+
+            clearForces() {
+                this.forces = [];
+            }
+
+            update(deltaTime) {
+                // 发射新粒子
+                const particlesToEmit = this.emissionRate * deltaTime;
+                const wholeParticles = Math.floor(particlesToEmit);
+                const fractionalParticle = particlesToEmit - wholeParticles;
+
+                for (let i = 0; i < wholeParticles; i++) {
+                    this.emitParticle();
+                }
+
+                if (Math.random() < fractionalParticle) {
+                    this.emitParticle();
+                }
+
+                // 更新现有粒子
+                for (let particle of this.particles) {
+                    if (!particle.active) continue;
+
+                    // 应用力
+                    particle.acceleration.copy(this.gravity);
+                    
+                    for (let force of this.forces) {
+                        const forceVector = force.getForce(particle.position, particle.velocity);
+                        particle.acceleration.add(forceVector);
+                    }
+
+                    // 更新速度和位置
+                    particle.velocity.add(particle.acceleration.clone().multiplyScalar(deltaTime));
+                    particle.velocity.multiplyScalar(this.damping);
+                    particle.position.add(particle.velocity.clone().multiplyScalar(deltaTime));
+
+                    // 更新生命周期
+                    particle.lifetime -= deltaTime;
+
+                    // 检查边界和生命周期
+                    if (particle.lifetime <= 0 || particle.position.y < -20) {
+                        this.killParticle(particle);
+                    } else {
+                        this.updateParticleAttribute(particle);
+                    }
+                }
+
+                // 更新几何体
+                this.geometry.attributes.position.needsUpdate = true;
+                this.geometry.attributes.size.needsUpdate = true;
+                this.geometry.attributes.lifetime.needsUpdate = true;
+                this.geometry.attributes.velocity.needsUpdate = true;
+            }
+
+            emitParticle() {
+                // 子类重写此方法
+                const position = this.emitterPosition.clone();
+                const velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    Math.random() * this.initialVelocity,
+                    (Math.random() - 0.5) * 2
+                );
+                this.createParticle(position, velocity);
+            }
+
+            burst(count = 100) {
+                for (let i = 0; i < count; i++) {
+                    this.emitParticle();
+                }
+            }
+        }
+
+        // 喷泉效果
+        class FountainParticleSystem extends AdvancedParticleSystem {
+            emitParticle() {
+                const angle = Math.random() * Math.PI * 2;
+                const radius = Math.random() * 2;
+                
+                const position = new THREE.Vector3(
+                    Math.cos(angle) * radius,
+                    0,
+                    Math.sin(angle) * radius
+                );
+                
+                const velocity = new THREE.Vector3(
+                    Math.cos(angle) * this.initialVelocity * 0.3,
+                    this.initialVelocity + Math.random() * 5,
+                    Math.sin(angle) * this.initialVelocity * 0.3
+                );
+                
+                this.createParticle(position, velocity);
+            }
+        }
+
+        // 爆炸效果
+        class ExplosionParticleSystem extends AdvancedParticleSystem {
+            emitParticle() {
+                const position = this.emitterPosition.clone();
+                position.add(new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 2
+                ));
+                
+                const velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * this.initialVelocity * 2,
+                    (Math.random() - 0.5) * this.initialVelocity * 2,
+                    (Math.random() - 0.5) * this.initialVelocity * 2
+                );
+                
+                this.createParticle(position, velocity, this.defaultLifetime * 0.5);
+            }
+        }
+
+        // 漩涡力场
+        class VortexForce {
+            constructor(center, strength = 10, radius = 15) {
+                this.center = center;
+                this.strength = strength;
+                this.radius = radius;
+            }
+
+            getForce(position, velocity) {
+                const diff = position.clone().sub(this.center);
+                const distance = diff.length();
+                
+                if (distance > this.radius) return new THREE.Vector3(0, 0, 0);
+                
+                const force = new THREE.Vector3(-diff.z, 0, diff.x);
+                force.normalize();
+                force.multiplyScalar(this.strength * (1 - distance / this.radius));
+                
+                // 向中心吸引
+                const attraction = diff.clone().normalize().multiplyScalar(-this.strength * 0.1);
+                force.add(attraction);
+                
+                return force;
+            }
+        }
+
+        // 漩涡粒子系统
+        class VortexParticleSystem extends AdvancedParticleSystem {
+            constructor(maxParticles) {
+                super(maxParticles);
+                this.vortexForce = new VortexForce(new THREE.Vector3(0, 5, 0), 20, 15);
+                this.addForce(this.vortexForce);
+            }
+
+            emitParticle() {
+                const angle = Math.random() * Math.PI * 2;
+                const radius = 10 + Math.random() * 5;
+                
+                const position = new THREE.Vector3(
+                    Math.cos(angle) * radius,
+                    Math.random() * 5,
+                    Math.sin(angle) * radius
+                );
+                
+                const velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    Math.random() * 2,
+                    (Math.random() - 0.5) * 2
+                );
+                
+                this.createParticle(position, velocity, this.defaultLifetime * 2);
+            }
+        }
+
+        // 雨滴效果
+        class RainParticleSystem extends AdvancedParticleSystem {
+            emitParticle() {
+                const position = new THREE.Vector3(
+                    (Math.random() - 0.5) * 40,
+                    20 + Math.random() * 10,
+                    (Math.random() - 0.5) * 40
+                );
+                
+                const velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    -this.initialVelocity,
+                    (Math.random() - 0.5) * 2
+                );
+                
+                this.createParticle(position, velocity, this.defaultLifetime);
+            }
+        }
+
+        // 当前粒子系统
+        let currentSystem = new FountainParticleSystem(2000);
+
+        // 切换效果
+        function switchEffect(type) {
+            // 移除当前系统
+            scene.remove(currentSystem.points);
+            currentSystem.geometry.dispose();
+            currentSystem.material.dispose();
+
+            // 创建新系统
+            switch (type) {
+                case 'fountain':
+                    currentSystem = new FountainParticleSystem(2000);
+                    break;
+                case 'explosion':
+                    currentSystem = new ExplosionParticleSystem(3000);
+                    break;
+                case 'vortex':
+                    currentSystem = new VortexParticleSystem(2500);
+                    break;
+                case 'rain':
+                    currentSystem = new RainParticleSystem(1500);
+                    break;
+            }
+
+            // 更新按钮状态
+            document.querySelectorAll('.effect-buttons button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(type).classList.add('active');
+        }
+
+        // 添加地面
+        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        const groundMaterial = new THREE.MeshLambertMaterial({
+            color: 0x333333,
+            transparent: true,
+            opacity: 0.3
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -1;
+        scene.add(ground);
+
+        // 添加光照
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        directionalLight.position.set(10, 20, 10);
+        scene.add(directionalLight);
+
+        // 事件监听器
+        document.getElementById('fountain').addEventListener('click', () => switchEffect('fountain'));
+        document.getElementById('explosion').addEventListener('click', () => switchEffect('explosion'));
+        document.getElementById('vortex').addEventListener('click', () => switchEffect('vortex'));
+        document.getElementById('rain').addEventListener('click', () => switchEffect('rain'));
+
+        document.getElementById('emissionRate').addEventListener('input', (e) => {
+            currentSystem.emissionRate = parseFloat(e.target.value);
+        });
+
+        document.getElementById('initialVelocity').addEventListener('input', (e) => {
+            currentSystem.initialVelocity = parseFloat(e.target.value);
+        });
+
+        document.getElementById('gravity').addEventListener('input', (e) => {
+            currentSystem.gravity.y = -parseFloat(e.target.value);
+        });
+
+        document.getElementById('damping').addEventListener('input', (e) => {
+            currentSystem.damping = parseFloat(e.target.value);
+        });
+
+        document.getElementById('lifetime').addEventListener('input', (e) => {
+            currentSystem.defaultLifetime = parseFloat(e.target.value);
+        });
+
+        document.getElementById('burst').addEventListener('click', () => {
+            currentSystem.burst(200);
+        });
+
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const deltaTime = clock.getDelta();
+            
+            currentSystem.update(deltaTime);
+            
+            controls.update();
+            
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // 响应窗口大小变化
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

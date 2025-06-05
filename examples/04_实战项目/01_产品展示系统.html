@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>01_产品展示系统</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 15px;
+            font-size: 14px;
+            border-radius: 8px;
+            max-width: 380px;
+            z-index: 100;
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            z-index: 100;
+        }
+        .controls button {
+            margin: 5px;
+            padding: 8px 15px;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .controls button:hover {
+            background: #0088ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>3D产品展示系统</h3>
+        <p>实战项目 - 产品360度展示功能：</p>
+        <ul>
+            <li>鼠标拖拽：旋转查看产品</li>
+            <li>滚轮：缩放产品</li>
+            <li>材质切换：不同材质效果</li>
+            <li>动画展示：自动旋转</li>
+            <li>环境光照：真实光照效果</li>
+        </ul>
+    </div>
+
+    <div class="controls">
+        <h4>产品控制</h4>
+        <button id="autoRotate">自动旋转</button>
+        <button id="changeMaterial">切换材质</button>
+        <button id="changeColor">变换颜色</button>
+        <button id="resetView">重置视角</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // 场景设置
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf0f0f0);
+
+        // 相机设置
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(5, 5, 5);
+
+        // 渲染器设置
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // 控制器设置
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.1;
+
+        // 光照设置
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(10, 10, 5);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        scene.add(directionalLight);
+
+        // 添加点光源增强效果
+        const pointLight = new THREE.PointLight(0xffffff, 0.5, 100);
+        pointLight.position.set(-5, 5, 5);
+        scene.add(pointLight);
+
+        // 创建产品模型（以一个复杂的几何体为例）
+        const productGroup = new THREE.Group();
+
+        // 主体部分
+        const mainGeometry = new THREE.CylinderGeometry(1, 1.5, 2, 32);
+        let mainMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x4444ff,
+            metalness: 0.7,
+            roughness: 0.2 
+        });
+        const mainMesh = new THREE.Mesh(mainGeometry, mainMaterial);
+        mainMesh.castShadow = true;
+        mainMesh.receiveShadow = true;
+        productGroup.add(mainMesh);
+
+        // 顶部装饰
+        const topGeometry = new THREE.SphereGeometry(0.8, 32, 16);
+        const topMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0xff4444,
+            metalness: 0.5,
+            roughness: 0.3 
+        });
+        const topMesh = new THREE.Mesh(topGeometry, topMaterial);
+        topMesh.position.y = 1.5;
+        topMesh.castShadow = true;
+        productGroup.add(topMesh);
+
+        // 底座
+        const baseGeometry = new THREE.CylinderGeometry(2, 2, 0.3, 32);
+        const baseMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x888888,
+            metalness: 0.9,
+            roughness: 0.1 
+        });
+        const baseMesh = new THREE.Mesh(baseGeometry, baseMaterial);
+        baseMesh.position.y = -1.15;
+        baseMesh.castShadow = true;
+        baseMesh.receiveShadow = true;
+        productGroup.add(baseMesh);
+
+        scene.add(productGroup);
+
+        // 地面
+        const floorGeometry = new THREE.PlaneGeometry(20, 20);
+        const floorMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // 材质数组
+        const materials = [
+            new THREE.MeshStandardMaterial({ color: 0x4444ff, metalness: 0.7, roughness: 0.2 }),
+            new THREE.MeshStandardMaterial({ color: 0xff4444, metalness: 0.9, roughness: 0.1 }),
+            new THREE.MeshStandardMaterial({ color: 0x44ff44, metalness: 0.3, roughness: 0.8 }),
+            new THREE.MeshPhongMaterial({ color: 0xffff44, shininess: 100 }),
+            new THREE.MeshLambertMaterial({ color: 0xff44ff })
+        ];
+
+        const colors = [0x4444ff, 0xff4444, 0x44ff44, 0xffff44, 0xff44ff, 0x44ffff];
+
+        let currentMaterialIndex = 0;
+        let currentColorIndex = 0;
+        let autoRotateEnabled = false;
+
+        // 控制按钮事件
+        document.getElementById('autoRotate').addEventListener('click', () => {
+            autoRotateEnabled = !autoRotateEnabled;
+            controls.autoRotate = autoRotateEnabled;
+            document.getElementById('autoRotate').textContent = autoRotateEnabled ? '停止旋转' : '自动旋转';
+        });
+
+        document.getElementById('changeMaterial').addEventListener('click', () => {
+            currentMaterialIndex = (currentMaterialIndex + 1) % materials.length;
+            mainMesh.material = materials[currentMaterialIndex];
+        });
+
+        document.getElementById('changeColor').addEventListener('click', () => {
+            currentColorIndex = (currentColorIndex + 1) % colors.length;
+            topMesh.material.color.setHex(colors[currentColorIndex]);
+        });
+
+        document.getElementById('resetView').addEventListener('click', () => {
+            camera.position.set(5, 5, 5);
+            controls.reset();
+        });
+
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+
+            controls.update();
+
+            // 产品微微浮动效果
+            productGroup.position.y = Math.sin(Date.now() * 0.001) * 0.1;
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // 窗口大小调整
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

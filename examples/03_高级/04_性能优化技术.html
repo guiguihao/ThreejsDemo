@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>04_性能优化技术</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: #111;
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 15px;
+            font-size: 14px;
+            border-radius: 8px;
+            max-width: 400px;
+            z-index: 100;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 15px;
+            font-size: 12px;
+            border-radius: 8px;
+            width: 320px;
+            z-index: 100;
+        }
+        .performance-panel {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 15px;
+            font-size: 12px;
+            border-radius: 8px;
+            width: 300px;
+            z-index: 100;
+        }
+        .control-group {
+            margin-bottom: 15px;
+        }
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #fff;
+        }
+        .control-group input, .control-group select {
+            width: 100%;
+            margin-bottom: 5px;
+            padding: 4px;
+        }
+        .control-group button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 2px;
+            width: 48%;
+        }
+        .control-group button:hover {
+            background: #45a049;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .checkbox-group input {
+            width: auto;
+            margin-right: 8px;
+        }
+        .performance-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            padding: 5px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+        }
+        .performance-value {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        .performance-value.warning {
+            color: #ff9800;
+        }
+        .performance-value.critical {
+            color: #f44336;
+        }
+        .optimization-status {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(76, 175, 80, 0.2);
+            border-radius: 4px;
+            border-left: 4px solid #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>Three.js 高级 - 性能优化技术</h3>
+        <p>本示例展示了多种Three.js性能优化技术：</p>
+        <ul>
+            <li><strong>视锥剔除</strong>：只渲染相机可见的物体</li>
+            <li><strong>实例化渲染</strong>：高效渲染大量相同物体</li>
+            <li><strong>LOD系统</strong>：根据距离切换模型精度</li>
+            <li><strong>遮挡剔除</strong>：剔除被遮挡的物体</li>
+            <li><strong>批量合并</strong>：减少绘制调用次数</li>
+            <li><strong>纹理优化</strong>：压缩和LOD纹理</li>
+            <li><strong>几何体优化</strong>：减少顶点和面数</li>
+        </ul>
+        <p>掌握这些优化技术能显著提升3D应用的性能表现。</p>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <h4>渲染优化</h4>
+            <div class="checkbox-group">
+                <input type="checkbox" id="enableFrustumCulling" checked>
+                <label for="enableFrustumCulling">视锥剔除</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="enableInstancedRendering" checked>
+                <label for="enableInstancedRendering">实例化渲染</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="enableLOD" checked>
+                <label for="enableLOD">LOD级别优化</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="enableOcclusionCulling">
+                <label for="enableOcclusionCulling">遮挡剔除</label>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h4>场景设置</h4>
+            <label>物体数量: <span id="objectCountValue">1000</span></label>
+            <input type="range" id="objectCount" min="100" max="5000" step="100" value="1000">
+            
+            <label>渲染距离: <span id="renderDistanceValue">100</span></label>
+            <input type="range" id="renderDistance" min="50" max="200" step="10" value="100">
+            
+            <label>相机移动速度: <span id="cameraSpeedValue">1.0</span></label>
+            <input type="range" id="cameraSpeed" min="0.1" max="3.0" step="0.1" value="1.0">
+        </div>
+
+        <div class="control-group">
+            <h4>渲染质量</h4>
+            <label>像素比: <span id="pixelRatioValue">1.0</span></label>
+            <input type="range" id="pixelRatio" min="0.5" max="2.0" step="0.1" value="1.0">
+            
+            <label>阴影质量:</label>
+            <select id="shadowQuality">
+                <option value="low">低</option>
+                <option value="medium" selected>中</option>
+                <option value="high">高</option>
+                <option value="ultra">超高</option>
+            </select>
+            
+            <div class="checkbox-group">
+                <input type="checkbox" id="enableAntialiasing" checked>
+                <label for="enableAntialiasing">抗锯齿</label>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h4>场景控制</h4>
+            <button onclick="regenerateScene()">重新生成</button>
+            <button onclick="optimizeScene()">优化场景</button>
+            <button onclick="stressTest()">压力测试</button>
+            <button onclick="resetOptimizations()">重置设置</button>
+        </div>
+    </div>
+
+    <div class="performance-panel">
+        <h4>性能监控</h4>
+        <div class="performance-item">
+            <span>帧率 (FPS):</span>
+            <span class="performance-value" id="fps">60</span>
+        </div>
+        <div class="performance-item">
+            <span>渲染时间:</span>
+            <span class="performance-value" id="renderTime">16ms</span>
+        </div>
+        <div class="performance-item">
+            <span>绘制调用:</span>
+            <span class="performance-value" id="drawCalls">0</span>
+        </div>
+        <div class="performance-item">
+            <span>顶点数:</span>
+            <span class="performance-value" id="vertices">0</span>
+        </div>
+        <div class="performance-item">
+            <span>三角形:</span>
+            <span class="performance-value" id="triangles">0</span>
+        </div>
+        <div class="performance-item">
+            <span>内存使用:</span>
+            <span class="performance-value" id="memory">0 MB</span>
+        </div>
+        <div class="performance-item">
+            <span>可见物体:</span>
+            <span class="performance-value" id="visibleObjects">0</span>
+        </div>
+        
+        <div class="optimization-status" id="optimizationStatus">
+            优化状态: 正常运行
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import Stats from 'three/addons/libs/stats.module.js';
+
+        // 全局变量
+        let scene, camera, renderer, controls;
+        let stats, clock;
+        let objects = [];
+        let instancedMeshes = [];
+        let lodObjects = [];
+        
+        // 性能监控
+        let frameCount = 0;
+        let lastTime = 0;
+        let fps = 60;
+        let renderTime = 16;
+
+        // 优化设置
+        let optimizationSettings = {
+            frustumCulling: true,
+            instancedRendering: true,
+            lod: true,
+            occlusionCulling: false,
+            shadowQuality: 'medium',
+            antialiasing: true
+        };
+
+        // 场景参数
+        let sceneParams = {
+            objectCount: 1000,
+            renderDistance: 100,
+            cameraSpeed: 1.0
+        };
+
+        function init() {
+            // 创建场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x111111);
+            scene.fog = new THREE.Fog(0x111111, 50, 200);
+
+            // 创建相机
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 20, 30);
+
+            // 创建渲染器
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: optimizationSettings.antialiasing,
+                powerPreference: "high-performance"
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(1.0);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            document.body.appendChild(renderer.domElement);
+
+            // 创建控制器
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxDistance = 200;
+            controls.minDistance = 5;
+
+            // 初始化性能监控
+            clock = new THREE.Clock();
+            setupPerformanceMonitoring();
+
+            // 创建环境
+            createEnvironment();
+
+            // 生成场景
+            generateScene();
+
+            // 设置控制器
+            setupControls();
+
+            // 开始渲染循环
+            animate();
+        }
+
+        function setupPerformanceMonitoring() {
+            // 创建Stats监控器
+            stats = new Stats();
+            stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
+            stats.dom.style.position = 'absolute';
+            stats.dom.style.top = '10px';
+            stats.dom.style.left = '50%';
+            stats.dom.style.transform = 'translateX(-50%)';
+            document.body.appendChild(stats.dom);
+        }
+
+        function createEnvironment() {
+            // 地面
+            const groundGeometry = new THREE.PlaneGeometry(400, 400);
+            const groundMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0x333333,
+                transparent: true,
+                opacity: 0.8
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // 灯光
+            addLights();
+
+            // 天空盒
+            createSkybox();
+        }
+
+        function addLights() {
+            // 环境光
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+            scene.add(ambientLight);
+
+            // 主方向光
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(50, 100, 50);
+            directionalLight.castShadow = true;
+            
+            // 根据质量设置阴影贴图大小
+            const shadowMapSize = getShadowMapSize();
+            directionalLight.shadow.mapSize.width = shadowMapSize;
+            directionalLight.shadow.mapSize.height = shadowMapSize;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 500;
+            directionalLight.shadow.camera.left = -100;
+            directionalLight.shadow.camera.right = 100;
+            directionalLight.shadow.camera.top = 100;
+            directionalLight.shadow.camera.bottom = -100;
+            
+            scene.add(directionalLight);
+
+            // 点光源
+            const pointLight = new THREE.PointLight(0xff6600, 0.8, 50);
+            pointLight.position.set(-20, 20, -20);
+            scene.add(pointLight);
+        }
+
+        function createSkybox() {
+            const skyboxGeometry = new THREE.SphereGeometry(300, 16, 16);
+            const skyboxMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x111111,
+                side: THREE.BackSide 
+            });
+            const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
+            scene.add(skybox);
+        }
+
+        function generateScene() {
+            clearScene();
+
+            if (optimizationSettings.instancedRendering) {
+                createInstancedObjects();
+            } else {
+                createIndividualObjects();
+            }
+
+            if (optimizationSettings.lod) {
+                createLODObjects();
+            }
+        }
+
+        function createInstancedObjects() {
+            // 创建实例化立方体
+            const cubeGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0x4CAF50 });
+            const cubeInstancedMesh = new THREE.InstancedMesh(cubeGeometry, cubeMaterial, Math.floor(sceneParams.objectCount * 0.4));
+            
+            // 设置实例化矩阵
+            const matrix = new THREE.Matrix4();
+            const color = new THREE.Color();
+            
+            for (let i = 0; i < cubeInstancedMesh.count; i++) {
+                // 位置
+                const x = (Math.random() - 0.5) * 100;
+                const y = Math.random() * 10 + 1;
+                const z = (Math.random() - 0.5) * 100;
+                
+                // 缩放
+                const scale = 0.5 + Math.random() * 1;
+                
+                // 旋转
+                const rotationX = Math.random() * Math.PI;
+                const rotationY = Math.random() * Math.PI;
+                const rotationZ = Math.random() * Math.PI;
+                
+                matrix.makeRotationFromEuler(new THREE.Euler(rotationX, rotationY, rotationZ));
+                matrix.setPosition(x, y, z);
+                matrix.scale(new THREE.Vector3(scale, scale, scale));
+                cubeInstancedMesh.setMatrixAt(i, matrix);
+                
+                // 颜色变化
+                color.setHSL(i / cubeInstancedMesh.count, 0.7, 0.5);
+                cubeInstancedMesh.setColorAt(i, color);
+            }
+            
+            cubeInstancedMesh.castShadow = true;
+            cubeInstancedMesh.receiveShadow = true;
+            scene.add(cubeInstancedMesh);
+            instancedMeshes.push(cubeInstancedMesh);
+
+            // 创建实例化球体
+            const sphereGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+            const sphereMaterial = new THREE.MeshStandardMaterial({ color: 0xFF5722 });
+            const sphereInstancedMesh = new THREE.InstancedMesh(sphereGeometry, sphereMaterial, Math.floor(sceneParams.objectCount * 0.3));
+            
+            for (let i = 0; i < sphereInstancedMesh.count; i++) {
+                const x = (Math.random() - 0.5) * 80;
+                const y = Math.random() * 15 + 2;
+                const z = (Math.random() - 0.5) * 80;
+                const scale = 0.3 + Math.random() * 0.8;
+                
+                matrix.makeScale(scale, scale, scale);
+                matrix.setPosition(x, y, z);
+                sphereInstancedMesh.setMatrixAt(i, matrix);
+                
+                color.setHSL(0.1 + i / sphereInstancedMesh.count * 0.3, 0.8, 0.6);
+                sphereInstancedMesh.setColorAt(i, color);
+            }
+            
+            sphereInstancedMesh.castShadow = true;
+            scene.add(sphereInstancedMesh);
+            instancedMeshes.push(sphereInstancedMesh);
+        }
+
+        function createIndividualObjects() {
+            // 创建单独的物体（性能较低的方式）
+            for (let i = 0; i < sceneParams.objectCount; i++) {
+                let geometry, material, mesh;
+                
+                if (i % 3 === 0) {
+                    geometry = new THREE.BoxGeometry(1, 1, 1);
+                    material = new THREE.MeshStandardMaterial({ 
+                        color: new THREE.Color().setHSL(Math.random(), 0.7, 0.5)
+                    });
+                } else if (i % 3 === 1) {
+                    geometry = new THREE.SphereGeometry(0.5, 16, 16);
+                    material = new THREE.MeshStandardMaterial({ 
+                        color: new THREE.Color().setHSL(Math.random(), 0.8, 0.6)
+                    });
+                } else {
+                    geometry = new THREE.CylinderGeometry(0.3, 0.3, 1.5);
+                    material = new THREE.MeshStandardMaterial({ 
+                        color: new THREE.Color().setHSL(Math.random(), 0.6, 0.7)
+                    });
+                }
+                
+                mesh = new THREE.Mesh(geometry, material);
+                mesh.position.set(
+                    (Math.random() - 0.5) * 100,
+                    Math.random() * 10 + 1,
+                    (Math.random() - 0.5) * 100
+                );
+                mesh.rotation.set(
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI,
+                    Math.random() * Math.PI
+                );
+                mesh.scale.setScalar(0.5 + Math.random() * 1);
+                mesh.castShadow = true;
+                
+                // 添加自定义属性用于优化
+                mesh.userData.originalPosition = mesh.position.clone();
+                mesh.userData.rotationSpeed = {
+                    x: (Math.random() - 0.5) * 0.02,
+                    y: (Math.random() - 0.5) * 0.02,
+                    z: (Math.random() - 0.5) * 0.02
+                };
+                
+                scene.add(mesh);
+                objects.push(mesh);
+            }
+        }
+
+        function createLODObjects() {
+            // 创建LOD (Level of Detail) 对象
+            for (let i = 0; i < 20; i++) {
+                const lod = new THREE.LOD();
+                
+                // 高精度模型（近距离）
+                const highDetailGeometry = new THREE.IcosahedronGeometry(2, 3);
+                const highDetailMaterial = new THREE.MeshStandardMaterial({ 
+                    color: new THREE.Color().setHSL(i / 20, 0.8, 0.5),
+                    metalness: 0.3,
+                    roughness: 0.4
+                });
+                const highDetailMesh = new THREE.Mesh(highDetailGeometry, highDetailMaterial);
+                lod.addLevel(highDetailMesh, 0);
+                
+                // 中精度模型（中距离）
+                const mediumDetailGeometry = new THREE.IcosahedronGeometry(2, 2);
+                const mediumDetailMaterial = new THREE.MeshStandardMaterial({ 
+                    color: new THREE.Color().setHSL(i / 20, 0.8, 0.5)
+                });
+                const mediumDetailMesh = new THREE.Mesh(mediumDetailGeometry, mediumDetailMaterial);
+                lod.addLevel(mediumDetailMesh, 15);
+                
+                // 低精度模型（远距离）
+                const lowDetailGeometry = new THREE.IcosahedronGeometry(2, 1);
+                const lowDetailMaterial = new THREE.MeshLambertMaterial({ 
+                    color: new THREE.Color().setHSL(i / 20, 0.8, 0.5)
+                });
+                const lowDetailMesh = new THREE.Mesh(lowDetailGeometry, lowDetailMaterial);
+                lod.addLevel(lowDetailMesh, 30);
+                
+                // 最低精度（超远距离）
+                const billboardGeometry = new THREE.PlaneGeometry(4, 4);
+                const billboardMaterial = new THREE.MeshBasicMaterial({ 
+                    color: new THREE.Color().setHSL(i / 20, 0.8, 0.5),
+                    transparent: true,
+                    alphaTest: 0.5
+                });
+                const billboard = new THREE.Mesh(billboardGeometry, billboardMaterial);
+                lod.addLevel(billboard, 60);
+                
+                // 设置位置
+                lod.position.set(
+                    (Math.random() - 0.5) * 150,
+                    5 + Math.random() * 10,
+                    (Math.random() - 0.5) * 150
+                );
+                
+                lod.castShadow = true;
+                scene.add(lod);
+                lodObjects.push(lod);
+            }
+        }
+
+        function clearScene() {
+            // 清理所有动态创建的物体
+            objects.forEach(obj => {
+                scene.remove(obj);
+                if (obj.geometry) obj.geometry.dispose();
+                if (obj.material) obj.material.dispose();
+            });
+            objects = [];
+
+            instancedMeshes.forEach(mesh => {
+                scene.remove(mesh);
+                mesh.geometry.dispose();
+                mesh.material.dispose();
+            });
+            instancedMeshes = [];
+
+            lodObjects.forEach(lod => {
+                scene.remove(lod);
+                lod.levels.forEach(level => {
+                    if (level.object.geometry) level.object.geometry.dispose();
+                    if (level.object.material) level.object.material.dispose();
+                });
+            });
+            lodObjects = [];
+        }
+
+        function optimizeScene() {
+            // 执行场景优化
+            performFrustumCulling();
+            updateLODObjects();
+            updateOptimizationStatus('场景优化完成');
+        }
+
+        function performFrustumCulling() {
+            if (!optimizationSettings.frustumCulling) return;
+
+            const frustum = new THREE.Frustum();
+            const matrix = new THREE.Matrix4();
+            matrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+            frustum.setFromProjectionMatrix(matrix);
+
+            let culledCount = 0;
+
+            objects.forEach(obj => {
+                const inFrustum = frustum.intersectsObject(obj);
+                if (obj.visible !== inFrustum) {
+                    obj.visible = inFrustum;
+                    if (!inFrustum) culledCount++;
+                }
+            });
+
+            // 更新实例化网格的可见性（简化版本）
+            instancedMeshes.forEach(mesh => {
+                // 这里可以实现更复杂的实例级别剔除
+                const distance = camera.position.distanceTo(mesh.position);
+                mesh.visible = distance < sceneParams.renderDistance;
+            });
+        }
+
+        function updateLODObjects() {
+            if (!optimizationSettings.lod) return;
+
+            lodObjects.forEach(lod => {
+                lod.update(camera);
+            });
+        }
+
+        function performOcclusionCulling() {
+            if (!optimizationSettings.occlusionCulling) return;
+            
+            // 简化的遮挡剔除实现
+            // 在实际项目中，这需要更复杂的算法
+            objects.forEach(obj => {
+                const distance = camera.position.distanceTo(obj.position);
+                if (distance > sceneParams.renderDistance) {
+                    obj.visible = false;
+                }
+            });
+        }
+
+        function updatePerformanceStats() {
+            // 更新性能统计
+            const info = renderer.info;
+            
+            document.getElementById('drawCalls').textContent = info.render.calls;
+            document.getElementById('vertices').textContent = info.render.points + info.render.lines;
+            document.getElementById('triangles').textContent = info.render.triangles;
+            
+            // 计算可见物体数量
+            let visibleCount = 0;
+            scene.traverse((obj) => {
+                if (obj.isMesh && obj.visible) visibleCount++;
+            });
+            document.getElementById('visibleObjects').textContent = visibleCount;
+            
+            // 估算内存使用（简化）
+            const memoryUsage = (info.memory.geometries * 0.1 + info.memory.textures * 0.5).toFixed(1);
+            document.getElementById('memory').textContent = memoryUsage + ' MB';
+            
+            // 更新FPS和渲染时间
+            document.getElementById('fps').textContent = Math.round(fps);
+            document.getElementById('renderTime').textContent = renderTime.toFixed(1) + 'ms';
+            
+            // 根据性能设置颜色
+            updatePerformanceColors();
+        }
+
+        function updatePerformanceColors() {
+            const fpsElement = document.getElementById('fps');
+            const renderTimeElement = document.getElementById('renderTime');
+            
+            // FPS颜色
+            if (fps >= 55) {
+                fpsElement.className = 'performance-value';
+            } else if (fps >= 30) {
+                fpsElement.className = 'performance-value warning';
+            } else {
+                fpsElement.className = 'performance-value critical';
+            }
+            
+            // 渲染时间颜色
+            if (renderTime <= 20) {
+                renderTimeElement.className = 'performance-value';
+            } else if (renderTime <= 40) {
+                renderTimeElement.className = 'performance-value warning';
+            } else {
+                renderTimeElement.className = 'performance-value critical';
+            }
+        }
+
+        function updateOptimizationStatus(message) {
+            document.getElementById('optimizationStatus').textContent = message;
+        }
+
+        function getShadowMapSize() {
+            const quality = optimizationSettings.shadowQuality;
+            switch (quality) {
+                case 'low': return 512;
+                case 'medium': return 1024;
+                case 'high': return 2048;
+                case 'ultra': return 4096;
+                default: return 1024;
+            }
+        }
+
+        function setupControls() {
+            // 优化开关
+            document.getElementById('enableFrustumCulling').addEventListener('change', (e) => {
+                optimizationSettings.frustumCulling = e.target.checked;
+            });
+
+            document.getElementById('enableInstancedRendering').addEventListener('change', (e) => {
+                optimizationSettings.instancedRendering = e.target.checked;
+                generateScene();
+            });
+
+            document.getElementById('enableLOD').addEventListener('change', (e) => {
+                optimizationSettings.lod = e.target.checked;
+                generateScene();
+            });
+
+            document.getElementById('enableOcclusionCulling').addEventListener('change', (e) => {
+                optimizationSettings.occlusionCulling = e.target.checked;
+            });
+
+            // 场景参数
+            document.getElementById('objectCount').addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                sceneParams.objectCount = value;
+                document.getElementById('objectCountValue').textContent = value;
+            });
+
+            document.getElementById('renderDistance').addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                sceneParams.renderDistance = value;
+                document.getElementById('renderDistanceValue').textContent = value;
+            });
+
+            document.getElementById('cameraSpeed').addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                sceneParams.cameraSpeed = value;
+                document.getElementById('cameraSpeedValue').textContent = value.toFixed(1);
+                controls.autoRotateSpeed = value;
+            });
+
+            // 渲染质量
+            document.getElementById('pixelRatio').addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                renderer.setPixelRatio(value);
+                document.getElementById('pixelRatioValue').textContent = value.toFixed(1);
+            });
+
+            document.getElementById('shadowQuality').addEventListener('change', (e) => {
+                optimizationSettings.shadowQuality = e.target.value;
+                // 重新创建阴影贴图
+                scene.traverse((obj) => {
+                    if (obj.isDirectionalLight && obj.castShadow) {
+                        const size = getShadowMapSize();
+                        obj.shadow.mapSize.width = size;
+                        obj.shadow.mapSize.height = size;
+                        obj.shadow.map = null; // 强制重新创建
+                    }
+                });
+            });
+
+            document.getElementById('enableAntialiasing').addEventListener('change', (e) => {
+                optimizationSettings.antialiasing = e.target.checked;
+                // 注意：改变抗锯齿需要重新创建渲染器
+                updateOptimizationStatus('抗锯齿设置已更改，需要刷新页面生效');
+            });
+        }
+
+        function regenerateScene() {
+            generateScene();
+            updateOptimizationStatus('场景已重新生成');
+        }
+
+        function stressTest() {
+            sceneParams.objectCount = 3000;
+            document.getElementById('objectCount').value = 3000;
+            document.getElementById('objectCountValue').textContent = '3000';
+            generateScene();
+            updateOptimizationStatus('压力测试模式：3000个物体');
+        }
+
+        function resetOptimizations() {
+            // 重置所有优化设置
+            optimizationSettings = {
+                frustumCulling: true,
+                instancedRendering: true,
+                lod: true,
+                occlusionCulling: false,
+                shadowQuality: 'medium',
+                antialiasing: true
+            };
+
+            sceneParams = {
+                objectCount: 1000,
+                renderDistance: 100,
+                cameraSpeed: 1.0
+            };
+
+            // 重置UI
+            document.getElementById('enableFrustumCulling').checked = true;
+            document.getElementById('enableInstancedRendering').checked = true;
+            document.getElementById('enableLOD').checked = true;
+            document.getElementById('enableOcclusionCulling').checked = false;
+            document.getElementById('objectCount').value = 1000;
+            document.getElementById('objectCountValue').textContent = '1000';
+            document.getElementById('renderDistance').value = 100;
+            document.getElementById('renderDistanceValue').textContent = '100';
+            document.getElementById('cameraSpeed').value = 1.0;
+            document.getElementById('cameraSpeedValue').textContent = '1.0';
+
+            generateScene();
+            updateOptimizationStatus('设置已重置为默认值');
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const currentTime = performance.now();
+            const deltaTime = clock.getDelta();
+
+            // 性能监控
+            stats.begin();
+
+            // 计算FPS
+            frameCount++;
+            if (currentTime - lastTime >= 1000) {
+                fps = frameCount * 1000 / (currentTime - lastTime);
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+
+            // 执行优化
+            if (optimizationSettings.frustumCulling) {
+                performFrustumCulling();
+            }
+
+            if (optimizationSettings.occlusionCulling) {
+                performOcclusionCulling();
+            }
+
+            if (optimizationSettings.lod) {
+                updateLODObjects();
+            }
+
+            // 更新物体动画
+            objects.forEach(obj => {
+                if (obj.userData.rotationSpeed) {
+                    obj.rotation.x += obj.userData.rotationSpeed.x;
+                    obj.rotation.y += obj.userData.rotationSpeed.y;
+                    obj.rotation.z += obj.userData.rotationSpeed.z;
+                }
+            });
+
+            // 更新控制器
+            controls.update();
+
+            // 渲染
+            const renderStart = performance.now();
+            renderer.render(scene, camera);
+            renderTime = performance.now() - renderStart;
+
+            // 更新性能统计
+            updatePerformanceStats();
+
+            stats.end();
+        }
+
+        // 处理窗口大小变化
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // 全局函数
+        window.regenerateScene = regenerateScene;
+        window.optimizeScene = optimizeScene;
+        window.stressTest = stressTest;
+        window.resetOptimizations = resetOptimizations;
+
+        // 初始化
+        init();
+    </script>
+</body>
+</html>
