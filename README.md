@@ -1,5 +1,5 @@
 
-预览：https://guiguihao.github.io/ThreejsDemo/index.html
+预览：https://guiguihao.github.io/ThreejsExamples/
 
 ## 开发环境设置
 
