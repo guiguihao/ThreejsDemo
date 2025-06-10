@@ -8,6 +8,7 @@
         body { 
             margin: 0; 
             overflow: hidden;
+            font-family: Arial, sans-serif;
         }
         canvas { 
             display: block; 
@@ -16,258 +17,438 @@
             position: absolute;
             top: 10px;
             left: 10px;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.8);
             color: white;
-            padding: 10px;
-            font-family: Arial, sans-serif;
-            font-size: 14px;
+            padding: 15px;
             border-radius: 5px;
-            max-width: 350px;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            max-width: 300px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .texture-list {
+            margin-top: 10px;
+        }
+        .texture-item {
+            background: #333;
+            margin: 5px 0;
+            padding: 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        .texture-item:hover {
+            background: #444;
+        }
+        .texture-item.selected {
+            border-color: #4CAF50;
+        }
+        .texture-preview {
+            width: 40px;
+            height: 40px;
+            display: inline-block;
+            margin-right: 10px;
+            vertical-align: middle;
+            border-radius: 3px;
+            background-size: cover;
+            background-position: center;
         }
         .loading {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #000;
-            color: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-family: Arial, sans-serif;
-            font-size: 24px;
-            z-index: 100;
+            text-align: center;
+            color: #4CAF50;
         }
     </style>
 </head>
 <body>
-    <div class="loading">加载中...</div>
-    
     <div class="info">
-        <h3>Three.js 基础 - 添加纹理</h3>
-        <p>本示例展示了如何在Three.js中添加和使用纹理：</p>
+        <h3>Three.js 基础纹理</h3>
+        <p>本示例展示了如何在Three.js中使用基础纹理：</p>
         <ul>
-            <li>基础颜色贴图 (Color Map)</li>
-            <li>法线贴图 (Normal Map)</li>
-            <li>凹凸贴图 (Bump Map)</li>
-            <li>位移贴图 (Displacement Map)</li>
-            <li>粗糙度贴图 (Roughness Map)</li>
-            <li>金属度贴图 (Metalness Map)</li>
-            <li>环境贴图 (Environment Map)</li>
+            <li>自动扫描纹理文件夹</li>
+            <li>动态纹理加载</li>
+            <li>纹理属性调整</li>
+            <li>纹理过滤和包装</li>
         </ul>
+        <div id="textureInfo">
+            <p><strong>当前纹理:</strong> <span id="currentTextureName">无</span></p>
+            <p><strong>尺寸:</strong> <span id="textureSize">-</span></p>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <h4>可用纹理:</h4>
+        <div id="loadingStatus" class="loading">正在扫描纹理文件...</div>
+        <div id="textureList" class="texture-list" style="display: none;"></div>
+        
+        <h4>纹理设置:</h4>
+        <label>重复 X: <input type="range" id="repeatX" min="0.1" max="5" step="0.1" value="1"></label>
+        <label>重复 Y: <input type="range" id="repeatY" min="0.1" max="5" step="0.1" value="1"></label>
+        <label>偏移 X: <input type="range" id="offsetX" min="-1" max="1" step="0.1" value="0"></label>
+        <label>偏移 Y: <input type="range" id="offsetY" min="-1" max="1" step="0.1" value="0"></label>
+        <label>旋转: <input type="range" id="rotation" min="0" max="6.28" step="0.1" value="0"></label>
     </div>
 
     <script type="importmap">
         {
             "imports": {
-                "three": "https://cdn.jsdelivr.net/npm/three@0.176.0/build/three.module.js",
-                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.176.0/examples/jsm/"
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
             }
         }
     </script>
 
     <script type="module">
-        // 导入Three.js库
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         
-        // 创建场景
+        // 场景设置
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x333333);
+        scene.background = new THREE.Color(0x222222);
         
-        // 创建相机
+        // 相机设置
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 0, 5);
+        camera.position.set(4, 3, 5);
         
-        // 创建渲染器
+        // 渲染器设置
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
         
-        // 添加控制器
+        // 轨道控制器
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
         
-        // 创建纹理加载器
+        // 光照设置
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 5, 5);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        scene.add(directionalLight);
+        
+        // 创建地面
+        const planeGeometry = new THREE.PlaneGeometry(20, 20);
+        const planeMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x808080,
+            side: THREE.DoubleSide
+        });
+        const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+        plane.rotation.x = -Math.PI / 2;
+        plane.position.y = -2;
+        plane.receiveShadow = true;
+        scene.add(plane);
+        
+        // 纹理加载器
         const textureLoader = new THREE.TextureLoader();
         
+        // 全局变量
+        let currentMesh = null;
+        let currentTexture = null;
+        let availableTextures = [];
+        let selectedTextureIndex = -1;
+        
+        // 预定义的纹理文件名列表（用于尝试加载）
+        const commonTextureNames = [
+            'dark_wooden_planks.png',
+            'plank_flooring_03.png',
+            'wood_floor_deck.png',
+            'wood_planks.png',
+            'green_metal_rust.png',
+            'rocky_terrain.png',
+            'rusty_metal_04.png',
+        ];
+        
+        // 扫描纹理文件
+        async function scanTextures() {
+            const textureBasePath = '../../assets/textures/';
+            const foundTextures = [];
+            
+            // 尝试加载预定义的纹理文件
+            for (const textureName of commonTextureNames) {
+                try {
+                    await new Promise((resolve, reject) => {
+                        const img = new Image();
+                        img.crossOrigin = 'anonymous';
+                        img.onload = () => {
+                            foundTextures.push({
+                                name: textureName,
+                                path: textureBasePath + textureName
+                            });
+                            resolve();
+                        };
+                        img.onerror = () => reject();
+                        img.src = textureBasePath + textureName;
+                    });
+                } catch (e) {
+                    // 文件不存在，继续尝试下一个
+                }
+            }
+            
+            // 如果没有找到任何纹理，生成一些程序纹理
+            if (foundTextures.length === 0) {
+                foundTextures.push(
+                    { name: '棋盘格纹理', path: null, generated: true },
+                    { name: '条纹纹理', path: null, generated: true },
+                    { name: '噪点纹理', path: null, generated: true }
+                );
+            }
+            
+            availableTextures = foundTextures;
+            updateTextureList();
+        }
+        
+        // 更新纹理列表UI
+        function updateTextureList() {
+            const loadingStatus = document.getElementById('loadingStatus');
+            const textureList = document.getElementById('textureList');
+            
+            loadingStatus.style.display = 'none';
+            textureList.style.display = 'block';
+            
+            textureList.innerHTML = '';
+            
+            availableTextures.forEach((texture, index) => {
+                const item = document.createElement('div');
+                item.className = 'texture-item';
+                item.onclick = () => selectTexture(index);
+                
+                const preview = document.createElement('div');
+                preview.className = 'texture-preview';
+                
+                if (texture.generated) {
+                    // 为程序生成的纹理创建预览
+                    const canvas = document.createElement('canvas');
+                    canvas.width = canvas.height = 40;
+                    const ctx = canvas.getContext('2d');
+                    
+                    switch (texture.name) {
+                        case '棋盘格纹理':
+                            for (let i = 0; i < 4; i++) {
+                                for (let j = 0; j < 4; j++) {
+                                    ctx.fillStyle = (i + j) % 2 ? '#ff6b6b' : '#4ecdc4';
+                                    ctx.fillRect(i * 10, j * 10, 10, 10);
+                                }
+                            }
+                            break;
+                        case '条纹纹理':
+                            for (let i = 0; i < 40; i += 5) {
+                                ctx.fillStyle = i % 10 === 0 ? '#ffeb3b' : '#333333';
+                                ctx.fillRect(i, 0, 5, 40);
+                            }
+                            break;
+                        case '噪点纹理':
+                            for (let i = 0; i < 1600; i++) {
+                                const x = i % 40;
+                                const y = Math.floor(i / 40);
+                                const noise = Math.random();
+                                ctx.fillStyle = `rgb(${noise*255},${noise*255},${noise*255})`;
+                                ctx.fillRect(x, y, 1, 1);
+                            }
+                            break;
+                    }
+                    
+                    preview.style.backgroundImage = `url(${canvas.toDataURL()})`;
+                } else {
+                    preview.style.backgroundImage = `url(${texture.path})`;
+                }
+                
+                const label = document.createElement('span');
+                label.textContent = texture.name;
+                
+                item.appendChild(preview);
+                item.appendChild(label);
+                textureList.appendChild(item);
+            });
+        }
+        
+        // 选择纹理
+        function selectTexture(index) {
+            selectedTextureIndex = index;
+            
+            // 更新UI
+            document.querySelectorAll('.texture-item').forEach((item, i) => {
+                item.classList.toggle('selected', i === index);
+            });
+            
+            // 加载纹理
+            loadTexture(availableTextures[index]);
+        }
+        
         // 加载纹理
-        // 注意：这些是示例URL，在实际项目中需要替换为真实的纹理路径
-        const textureURLs = {
-            color: 'https://threejs.org/examples/textures/brick_diffuse.jpg',
-            normal: 'https://threejs.org/examples/textures/brick_normal.jpg',
-            roughness: 'https://threejs.org/examples/textures/brick_roughness.jpg',
-            displacement: 'https://threejs.org/examples/textures/brick_displacement.jpg'
-        };
-        
-        // 存储加载的纹理
-        const textures = {};
-        
-        // 使用Promise加载所有纹理
-        const texturePromises = Object.entries(textureURLs).map(([key, url]) => {
-            return new Promise((resolve) => {
-                textureLoader.load(url, (texture) => {
-                    textures[key] = texture;
-                    resolve();
-                });
-            });
-        });
-
-        // 加载立方体贴图作为环境贴图
-        const cubeTextureLoader = new THREE.CubeTextureLoader();
-        let envMap;
-        const envMapPromise = new Promise((resolve) => {
-            cubeTextureLoader.setPath('https://threejs.org/examples/textures/cube/SwedishRoyalCastle/');
-            cubeTextureLoader.load([
-                'px.jpg', 'nx.jpg',
-                'py.jpg', 'ny.jpg',
-                'pz.jpg', 'nz.jpg'
-            ], (texture) => {
-                envMap = texture;
-                resolve();
-            });
-        });
-
-        // 当所有纹理加载完成时创建场景
-        Promise.all([...texturePromises, envMapPromise]).then(() => {
-            // 隐藏加载屏幕
-            document.querySelector('.loading').style.display = 'none';
+        function loadTexture(textureInfo) {
+            let texture;
             
-            // 设置纹理重复和包裹方式
-            Object.values(textures).forEach(texture => {
-                texture.wrapS = THREE.RepeatWrapping;
-                texture.wrapT = THREE.RepeatWrapping;
-                texture.repeat.set(1, 1);
-            });
-            
-            // 添加光源
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-            scene.add(ambientLight);
-            
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-            directionalLight.position.set(5, 5, 5);
-            scene.add(directionalLight);
-            
-            // 创建材质
-            const material = new THREE.MeshStandardMaterial({
-                map: textures.color,
-                normalMap: textures.normal,
-                displacementMap: textures.displacement,
-                displacementScale: 0.1,
-                roughnessMap: textures.roughness,
-                roughness: 0.8,
-                metalness: 0.2
-            });
-            
-            // 创建球体几何体 - 使用较高分辨率以便显示位移贴图效果
-            const sphereGeometry = new THREE.SphereGeometry(1, 128, 128);
-            const sphere = new THREE.Mesh(sphereGeometry, material);
-            sphere.position.set(-2, 0, 0);
-            scene.add(sphere);
-            
-            // 创建立方体几何体
-            const boxGeometry = new THREE.BoxGeometry(1.5, 1.5, 1.5, 50, 50, 50);
-            const cube = new THREE.Mesh(boxGeometry, material.clone());
-            cube.position.set(2, 0, 0);
-            scene.add(cube);
-
-            // 使用环境贴图的金属球
-            const metallicMaterial = new THREE.MeshStandardMaterial({
-                roughness: 0.1,
-                metalness: 1.0,
-                envMap: envMap
-            });
-            
-            const metallicSphere = new THREE.Mesh(
-                new THREE.SphereGeometry(1, 64, 64),
-                metallicMaterial
-            );
-            metallicSphere.position.set(0, 2.5, 0);
-            scene.add(metallicSphere);
-            
-            // 创建标签
-            function createLabel(text, position) {
-                const canvas = document.createElement('canvas');
-                const context = canvas.getContext('2d');
-                canvas.width = 256;
-                canvas.height = 64;
-                
-                // 设置文本样式
-                context.fillStyle = 'rgba(0,0,0,0.7)';
-                context.fillRect(0, 0, canvas.width, canvas.height);
-                context.font = 'Bold 20px Arial';
-                context.fillStyle = 'white';
-                context.fillText(text, 10, 30);
-                
-                // 创建纹理
-                const texture = new THREE.CanvasTexture(canvas);
-                const material = new THREE.SpriteMaterial({ map: texture });
-                const sprite = new THREE.Sprite(material);
-                
-                // 设置位置和缩放
-                sprite.position.copy(position);
-                sprite.position.y -= 1.5;
-                sprite.scale.set(2, 0.5, 1);
-                
-                scene.add(sprite);
-                return sprite;
+            if (textureInfo.generated) {
+                // 生成程序纹理
+                texture = generateTexture(textureInfo.name);
+            } else {
+                // 加载文件纹理
+                texture = textureLoader.load(
+                    textureInfo.path,
+                    (loadedTexture) => {
+                        console.log(`纹理加载成功: ${textureInfo.name}`);
+                        updateTextureInfo(textureInfo, loadedTexture);
+                    },
+                    undefined,
+                    (error) => {
+                        console.error(`纹理加载失败: ${textureInfo.name}`, error);
+                    }
+                );
             }
             
-            // 添加标签
-            createLabel('带纹理的物体', new THREE.Vector3(-2, 0, 0));
-            createLabel('带纹理的立方体', new THREE.Vector3(2, 0, 0));
-            createLabel('环境贴图反射球', new THREE.Vector3(0, 2.5, 0));
+            currentTexture = texture;
+            applyTextureToMesh();
+            updateTextureInfo(textureInfo, texture);
+        }
+        
+        // 生成程序纹理
+        function generateTexture(type) {
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = 256;
+            const ctx = canvas.getContext('2d');
             
-            // 创建平面，展示不同类型的贴图
-            function createTextureDisplayPlane(texture, position, label) {
-                const planeGeo = new THREE.PlaneGeometry(1, 1);
-                const planeMat = new THREE.MeshBasicMaterial({ 
-                    map: texture,
-                    side: THREE.DoubleSide
-                });
-                const plane = new THREE.Mesh(planeGeo, planeMat);
-                plane.position.copy(position);
-                scene.add(plane);
-                
-                createLabel(label, new THREE.Vector3(position.x, position.y - 0.8, position.z));
-                
-                return plane;
+            switch (type) {
+                case '棋盘格纹理':
+                    for (let i = 0; i < 16; i++) {
+                        for (let j = 0; j < 16; j++) {
+                            ctx.fillStyle = (i + j) % 2 ? '#ff6b6b' : '#4ecdc4';
+                            ctx.fillRect(i * 16, j * 16, 16, 16);
+                        }
+                    }
+                    break;
+                    
+                case '条纹纹理':
+                    for (let i = 0; i < 256; i += 20) {
+                        ctx.fillStyle = i % 40 === 0 ? '#ffeb3b' : '#333333';
+                        ctx.fillRect(i, 0, 20, 256);
+                    }
+                    break;
+                    
+                case '噪点纹理':
+                    for (let i = 0; i < 256; i++) {
+                        for (let j = 0; j < 256; j++) {
+                            const noise = Math.random();
+                            ctx.fillStyle = `rgb(${noise*255},${noise*255},${noise*255})`;
+                            ctx.fillRect(i, j, 1, 1);
+                        }
+                    }
+                    break;
             }
             
-            // 创建纹理展示平面
-            const planeY = -2;
-            createTextureDisplayPlane(textures.color, new THREE.Vector3(-3, planeY, 0), "颜色贴图");
-            createTextureDisplayPlane(textures.normal, new THREE.Vector3(-1, planeY, 0), "法线贴图");
-            createTextureDisplayPlane(textures.roughness, new THREE.Vector3(1, planeY, 0), "粗糙度贴图");
-            createTextureDisplayPlane(textures.displacement, new THREE.Vector3(3, planeY, 0), "位移贴图");
+            return new THREE.CanvasTexture(canvas);
+        }
+        
+        // 应用纹理到网格
+        function applyTextureToMesh() {
+            if (!currentTexture || !currentMesh) return;
             
-            // 添加坐标轴辅助器
-            const axesHelper = new THREE.AxesHelper(3);
-            scene.add(axesHelper);
+            // 设置纹理包装和过滤
+            currentTexture.wrapS = THREE.RepeatWrapping;
+            currentTexture.wrapT = THREE.RepeatWrapping;
+            currentTexture.minFilter = THREE.LinearFilter;
+            currentTexture.magFilter = THREE.LinearFilter;
+            
+            // 应用基础纹理
+            currentMesh.material = new THREE.MeshStandardMaterial({
+                map: currentTexture
+            });
+            
+            updateTextureControls();
+        }
+        
+        // 更新纹理控制滑块
+        function updateTextureControls() {
+            if (!currentTexture) return;
+            
+            const repeatX = document.getElementById('repeatX');
+            const repeatY = document.getElementById('repeatY');
+            const offsetX = document.getElementById('offsetX');
+            const offsetY = document.getElementById('offsetY');
+            const rotation = document.getElementById('rotation');
+            
+            currentTexture.repeat.set(parseFloat(repeatX.value), parseFloat(repeatY.value));
+            currentTexture.offset.set(parseFloat(offsetX.value), parseFloat(offsetY.value));
+            currentTexture.rotation = parseFloat(rotation.value);
+        }
+        
+        // 更新纹理信息显示
+        function updateTextureInfo(textureInfo, texture) {
+            document.getElementById('currentTextureName').textContent = textureInfo.name;
+            
+            if (texture && texture.image) {
+                document.getElementById('textureSize').textContent = 
+                    `${texture.image.width || 256} x ${texture.image.height || 256}`;
+            } else {
+                document.getElementById('textureSize').textContent = '256 x 256';
+            }
+        }
+        
+        // 创建默认几何体
+        function createDefaultMesh() {
+            if (currentMesh) {
+                scene.remove(currentMesh);
+            }
+            
+            const geometry = new THREE.BoxGeometry(2, 2, 2);
+            const material = new THREE.MeshStandardMaterial({ color: 0xffffff });
+            
+            currentMesh = new THREE.Mesh(geometry, material);
+            currentMesh.castShadow = true;
+            scene.add(currentMesh);
+        }
+        
+        // 纹理控制事件监听
+        ['repeatX', 'repeatY', 'offsetX', 'offsetY', 'rotation'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateTextureControls);
         });
         
         // 动画循环
         function animate() {
             requestAnimationFrame(animate);
             
-            // 更新控制器
-            controls.update();
+            if (currentMesh) {
+                currentMesh.rotation.y += 0.005;
+            }
             
-            // 渲染场景
+            controls.update();
             renderer.render(scene, camera);
         }
         
-        // 开始动画循环
-        animate();
-        
-        // 响应窗口变化
-        window.addEventListener('resize', function() {
+        // 窗口大小调整
+        window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
+        
+        // 初始化
+        createDefaultMesh();
+        scanTextures().then(() => {
+            if (availableTextures.length > 0) {
+                selectTexture(0);
+            }
+        });
+        
+        // 开始动画
+        animate();
     </script>
 </body>
 </html>
