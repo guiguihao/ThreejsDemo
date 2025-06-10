@@ -1,4 +1,4 @@
-演示 guiguihao.github.io/ThreejsExamples/
+演示：https://guiguihao.github.io/ThreejsExamples/
 ## 开发环境设置
 
 ### 使用CDN方式（简单方式）
